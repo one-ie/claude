@@ -314,9 +314,9 @@ This plan rewrites the very engine that runs it (`do.md` + the four W1–W4 agen
 ## Status
 ```
 Batch 0   - [ ] W0 baseline   - [ ] W1 shared recon
-Batch 1   - [x] C0 folder-aware verify (bootstrapped by hand, pre-loop — do-folder.sh tested, do.md W0/W4 wired)  - [ ] C1 .w2-spec+doc-plan  - [ ] C2 .do-trust  - [ ] C3 cost:cycle  - [ ] C4 .w3-receipts
-Batch 2   - [ ] C5 seed       - [ ] C7 tiers      - [ ] C9 survey      - [ ] C10 reconcile
-Batch 3   - [ ] C6 INTAKE+spine   - [ ] C8 worktree   - [ ] C11 PROVE   - [ ] C14 ANALYZE
+Batch 1   - [x] C0 folder-aware verify  - [x] C1 .w2-spec+doc-plan (cf681b3)  - [x] C2 .do-trust (6704cfe)  - [x] C3 cost:cycle (754dd1e)  - [x] C4 .w3-receipts (43ba67b)  ✓ engine consistency verified
+Batch 2   - [ ] C5 seed       - [x] C7 tiers (858b50f)  - [x] C9 survey (858b50f)  - [x] C10 reconcile (858b50f)
+Batch 3   - [ ] C6 INTAKE+spine   - [ ] C8 worktree   - [ ] C11 PROVE   - [x] C14 ANALYZE (858b50f)
 Batch 4   - [ ] C12 merge + CLARIFY (kill /do-loop)
 Batch 5   - [ ] C13 smoke (outcome)
 Plan close
