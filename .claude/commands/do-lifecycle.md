@@ -1,18 +1,20 @@
-# /do-loop
+# do-lifecycle — the build lifecycle `/do` reads (a spec, NOT a command)
 
-**The outer build lifecycle.** `/do` (W0→W4) is the *execution engine* — it consumes a `-todo.md` and ships verified code. `/do-loop` is the *product loop* that wraps it: idea → goal → promise → survey → design → plan → equip → build → prove → teach → ship → learn.
+**`/do` is the single command.** This file is the lifecycle spec its intent mode reads (like `do-intent.md` / `do-autonomous.md`) — there is no separate `/do-loop`. The inner W0→W4 engine (`do.md`) answers *"is the code correct?"*; this lifecycle wraps it to answer *"did we ship what we promised, to whom, and can they use it?"* — idea → goal → promise → survey → design → plan → equip → build → prove → teach → ship → learn.
 
-> `/do` answers *"is the code correct?"* — bash gates, rubric ≥ 0.65.
-> `/do-loop` answers *"did we ship what we promised, to whom, and can they use it?"*
+> Inner engine: bash gates, rubric ≥ 0.65 (`do.md`).
+> This lifecycle: the artifact spine + two quality gates (CLARIFY, ANALYZE) + the closed loop.
 
-**This file orchestrates; it does not reimplement.** Every phase composes a primitive that already exists. If a phase tempts you to write new machinery, you've misread the phase — find the command/skill it wraps.
+**This spec orchestrates; it does not reimplement.** Every phase composes a primitive that already exists. If a phase tempts you to write new machinery, you've misread the phase — find the command/skill it wraps.
+
+`/do` resolves the entry from the input (see `do.md` intent mode):
 
 ```
-/do-loop <feature-intent>            full lifecycle P0→P8 (tier auto-inferred)
-/do-loop <feature> --tier fix        force a loop tier (patch|fix|feature|schema)
-/do-loop <feature> --from P3         resume at a phase (skip done phases)
-/do-loop <feature> --surface api     force a surface (skip auto-detect)
-/do-loop --batch f1,f2,f3            independent features, parallel — one worktree each
+/do <feature-intent>            full lifecycle P0→P8 (tier auto-inferred)
+/do <feature> --tier fix        force a loop tier (patch|fix|feature|schema)
+/do <feature> --from P3         resume at a phase (skip done phases)
+/do <feature> --surface api     force a surface (skip auto-detect)
+/do --batch f1,f2,f3            independent features, parallel — one worktree each
 ```
 
 ---
@@ -53,6 +55,25 @@ Each phase closes with **one durable artifact** on disk. No phase advances until
 
 ---
 
+## P1 · CLARIFY — de-risk the spec before PLAN (FEATURE/SCHEMA only)
+
+The SPEC phase's second move (after P1.0 reconciliation), tier-gated to FEATURE/SCHEMA — PATCH/FIX skip it. **CLARIFY is design-time decision capture, NOT a second human gate.** INTAKE already agreed the goal in one shot; CLARIFY only resolves ambiguity that would cause expensive downstream rework, and writes the answers into the spec — it never re-opens the goal.
+
+Scan `plans/<f>.md` against a compact ambiguity taxonomy; ask **≤5** high-impact questions, one at a time, each with a recommended answer (`AskUserQuestion`):
+
+| Category | The unresolved question that earns a CLARIFY |
+|---|---|
+| Scope & out-of-scope | what is explicitly NOT built |
+| Data model | entities/fields/lifecycle the substrate must hold (vs compose existing) |
+| Edge cases | negative/empty/concurrent flows |
+| Non-functional | a measurable target where the promise says "fast"/"secure" |
+| Terminology | the canonical term per `dictionary.md` (no synonym drift) |
+| Done signal | what observable proves the acceptance criterion |
+
+Write each answer back under a `## Clarifications` section of `plans/<f>.md` (`- Q: … → A: …`), and fold it into the affected spec section. Skip a question whose answer wouldn't change the build or the tests. Then ANALYZE (`do-analyze.sh`) runs after PLAN to verify every deliverable→cycle and AC→test before any build spend.
+
+---
+
 ## Loop tiers — run only the phases the change earns
 
 Phases are **opt-out for small work, not opt-in.** A typo does not get marketing copy, a tutorial, and a release note. Matching spend to the change is the loop's primary token control.
@@ -64,7 +85,7 @@ Phases are **opt-out for small work, not opt-in.** A typo does not get marketing
 | **FEATURE** | new user-visible capability | P0 → P8 (full) | worktree → merge on P5 | full fan-out, budgeted |
 | **SCHEMA** | touches `.tql` / dimension / verb / dictionary name | P1.0 at **max** effort, then full | worktree → merge on P5 | substrate is never a patch |
 
-`/do-loop` infers the tier from intent + a one-line `git diff --stat` probe; `--tier` overrides. **When unsure, drop a tier, not up** — an under-built FIX surfaces in P5 and re-opens; an over-built PATCH is burnt tokens you can't refund.
+`/do` infers the tier from intent + a one-line `git diff --stat` probe (`do-tier.sh`); `--tier` overrides. **When unsure, drop a tier, not up** — an under-built FIX surfaces in P5 and re-opens; an over-built PATCH is burnt tokens you can't refund.
 
 **One gradient, two scopes.** These *product* tiers gate **which phases run**. Inside P4, `/do`'s own *code* classifier (TRIVIAL · SIMPLE · COMPLEX) gates **how the build executes** — agent spawns, model routing. They compose, they don't compete: the outer tier asks *how much product does this change earn?*, the inner asks *how much machinery does the build need?* A FEATURE can still be a SIMPLE build; a FIX can still be COMPLEX.
 
@@ -158,7 +179,7 @@ A self-modifying plan (one that edits `.claude/` itself) is the special case: bu
 
 ## Cross-cutting: token & state discipline (from `agentic-patterns.md`)
 
-The loop's memory lives in **files, not the transcript** — so a compaction mid-build never corrupts a plan, and resume is free. Five rules `/do` and `/do-loop` share:
+The loop's memory lives in **files, not the transcript** — so a compaction mid-build never corrupts a plan, and resume is free. Five rules the engine and this lifecycle share:
 
 | Rule | Artifact | Why (GAP) |
 |------|----------|-----------|
@@ -285,4 +306,4 @@ One idea = one **path**. The loop is that path strengthening from a weak seed to
 
 ---
 
-*`/do` ships correct code. `/do-loop` ships a kept promise. The promise is the goal contract in the user's language — write it first, verify it last.*
+*`/do`'s engine ships correct code; its lifecycle ships a kept promise. The promise is the goal contract in the user's language — write it first, verify it last.*
