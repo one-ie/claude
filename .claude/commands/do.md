@@ -80,7 +80,7 @@ Log: `tier=simple  spawns=2-3`
 | `standard` | composite 0.65–0.85 (default) | show-frame render; auto-continue |
 | `cautious` | composite < 0.65 × 2 consecutive | show-frame + halt; run `/do next` to continue |
 
-Counter resets to 0 on streak break. Tracked in `learnings.md`. Emit `loop:trust:{level}`.
+Counter resets to 0 on streak break. **Source of truth is `.do-trust.json` `{level, consecutive, composite, updated}`** — machine-readable, written at cycle close, read FIRST at startup (absent → default `standard`). `learnings.md` stays human history only (deriving trust from prose fails silently). Emit `loop:trust:{level}`.
 
 *Constraint set: Minimize context. Maximize accuracy. Succinct. Progressive. Self-learning. Secure. Compress before construct.*
 
@@ -429,6 +429,7 @@ All 4 waves complete → `/close --todo <slug> --cycle N`
 - **Deliverable proof captured** — curl output / screenshot path / log line that proves the cycle's `Deliverable:` row is live. Without it, cycle does not close.
 - **Plan-outcome re-check (zero LLM tokens):** evaluate `$(yq '.outcome' plans/{todo-file}.md)`. Exit 0 → mark remaining cycles `state: justify-or-drop`, halt `--auto`, prompt user to drop or justify each. Plan does not close until this command exits 0.
 
+**Write `.do-trust.json`** `{level, consecutive, composite, updated}` (the machine-readable trust record `--auto` reads at startup).
 Format: `trust: {level} composite={X.XX} cycles_at_level={N}`
 
 **Drift detection (at cycle close):**
