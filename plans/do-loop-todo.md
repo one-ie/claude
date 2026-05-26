@@ -320,7 +320,7 @@ Batch 3   - [x] C6 INTAKE+spine (38b2397)   - [x] C8 worktree (026e81d)   - [x] 
 Batch 4   - [x] C12 merge + CLARIFY, /do-loop killed (ea2527f)
 Batch 5   - [x] C13 smoke (a6b4cd5) — exits 0
 Plan close
-  - [x] do-smoke.sh exits 0   - [ ] canary `/do <idea>` run logged (the LLM loop — bash can't drive it)   - [x] /do-loop command gone, single entry
+  - [x] do-smoke.sh exits 0   - [x] canary `/do <idea>` run logged — "slug/memory → slug/soul" rename: INTAKE→tier=FIX→recon→W3→W4→PROVE, committed one.ie c98aa862   - [x] /do-loop command gone, single entry
   - [x] every D# reachable (ANALYZE coverage = 100% on this very plan)   - [x] do-lifecycle.md no longer describes fiction
   - [ ] final compress sweep + learnings append
 ```
