@@ -56,6 +56,38 @@ type: refactor | fix | feature | doc   (controls W4 simplicity benchmark)
 - <cross-consistency check — grep old term, ensure 0 hits>
 ```
 
+## Canonical handoff — write `.w2-spec.json` + `.w2-doc-plan.json` (read by path, never the transcript)
+
+After producing the plan above, **write two files at repo root**. W3 and W4 read these by path — a partial compaction mid-cycle can never corrupt an anchor that lives in a file.
+
+`.w2-spec.json`:
+```json
+{
+  "cycle": "<id>",
+  "type": "refactor|fix|feature|doc",
+  "diff_specs": [
+    {
+      "target": "<abs/path>",
+      "anchor": "<exact old_string>",
+      "action": "replace|insert-after|delete",
+      "new": "<exact new_string>",
+      "rationale": "<one sentence>",
+      "current_state": "<=8-line excerpt of the region being changed (you already have it from W1 — persist it, don't re-read)>",
+      "must_not_break": "<one line: adjacent behavior the edit must preserve>",
+      "serves": "<the D# / deliverable this advances>"
+    }
+  ]
+}
+```
+
+`current_state` + `must_not_break` + `serves` are the lean context pack (ex-BMAD story-file): W3 reads them so it never has to re-scan the repo, and it knows what regression to avoid. They cost ~0 tokens — you saw the file in W1; persist the relevant slice instead of discarding it.
+
+`.w2-doc-plan.json` (the doc-sync gate in W4 reads this — without it, the gate is dead code):
+```json
+{ "renames": ["<old-identifier>"], "touched_docs": ["docs/<file>.md"], "contract_dirs": ["<dir-whose-CLAUDE.md-must-update>"] }
+```
+Emit `{"renames":[],"touched_docs":[],"contract_dirs":[]}` for a trivial cycle (the gate then bypasses cleanly).
+
 ## The Three Locked Rules
 
 1. **Closed loop** — every diff spec is one `.on()` handler or one anchored edit. If a branch has no receiver in W3, drop it.
@@ -107,7 +139,7 @@ If recon is too thin to decide, emit `dissolved` (weight `-0.5`) and name the mi
 
 ## Write tool policy
 
-You may Write only to `docs/` — for draft specs or ADR-style notes that W3 will finalize. Never Write into `src/` — that's W3's wave.
+You may Write `.w2-spec.json` and `.w2-doc-plan.json` at repo root (the canonical handoff), plus `docs/` — for draft specs or ADR-style notes that W3 will finalize. Never Write into `src/` — that's W3's wave.
 
 ## Out of scope
 

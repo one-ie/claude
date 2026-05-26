@@ -10,7 +10,7 @@ You are the W4 verify agent. The POST check of the deterministic sandwich. You t
 
 ## Contract
 
-**Input:** the set of files touched in W3 + the TODO's verify checklist + the rubric targets from W2.
+**Input:** the set of files touched in W3 + the TODO's verify checklist + the rubric targets from W2. Read `.w2-spec.json` by path (not the transcript) and cross-check that **every** `diff_specs[]` entry actually landed in its `target` — an unapplied spec is a stability fail, not a pass. Read `.w2-doc-plan.json` for the doc-sync gate (renames/touched_docs/contract_dirs).
 
 **Output:** a verify report with deterministic receipts, rubric scores, and — for every
 score below 1.0 — a specific improvement instruction that feeds the next cycle's W1.

@@ -180,6 +180,8 @@ Write `.w0-baseline.json` with tests passed, buildMs (if run), bundleKB (if run)
 
 3. **≤5 files (direct path):** read files with Read tool, produce equivalent structured findings in-context.
 
+**Recon cap (token discipline):** the W1 receipt is capped at **400 words** — enforce before W2 spawns. Verbatim recon blows W2/W4 context. Persist the high-signal slices into `.w2-spec.json`'s `current_state` fields (W2), don't carry the raw dump forward.
+
 4. Mark Wave 1 `[x]`.
 
 Log: `W1: mode=agents|direct  files=N  marked=N  warned=N  dissolved=N`
@@ -262,6 +264,8 @@ Cannot write all three → halt; the cycle doesn't belong in this plan. Log: `W2
 
    Trivial cycles (≤3 files, no public surface, no rename) → skip step 5a entirely.
 
+   **Write `.w2-doc-plan.json` `{renames, touched_docs, contract_dirs}`** — the W4 doc-sync gate reads it by path (without this write the gate is dead code). Trivial cycle → write `{"renames":[],"touched_docs":[],"contract_dirs":[]}` so the gate bypasses cleanly.
+
    Log: `W2 doc-plan: docs=N triggers=[<trigger-codes>]`
 
 6. For each W1 finding: **Act** (diff spec) / **Keep** (intentional exception) / **Defer** (out of scope — write follow-up task ID).
@@ -275,6 +279,8 @@ Cannot write all three → halt; the cycle doesn't belong in this plan. Log: `W2
    COMPRESS:  compose | extend | new
    RATIONALE: "<one sentence>"
    ```
+
+   **Then write `.w2-spec.json`** — the canonical machine-readable handoff W3/W4 read by path (schema in `w2-decide.md`). Each spec carries the lean context pack: `current_state` (≤8-line excerpt you already hold from W1), `must_not_break` (one line), `serves` (the D#). W3 reads this file, not the transcript — compaction-proof.
 
 8. Mark Wave 2 `[x]`.
 
