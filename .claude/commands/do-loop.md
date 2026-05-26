@@ -142,6 +142,18 @@ Feature B:  P0 ─ P1 ─ P2 ─ P3 ─ P4 ...        (runs concurrently — no 
 
 **Worktrees isolate the trunk from in-flight builds.** FEATURE and SCHEMA tiers build inside a git worktree (`Agent isolation: "worktree"`); the worktree merges to the trunk the moment its **P5 promise-check** passes — so every commit on the trunk is, by construction, a kept promise. A feature that fails PROVE is abandoned with its worktree and the trunk stays clean. Under `--batch`, that's one worktree per feature, each merging independently on its own P5. The same mechanism runs P4 split-test variants: N worktrees, the winner merges, the losers `warn(0.5)` and are discarded. PATCH/FIX skip this — they're too small to isolate and edit the trunk directly.
 
+The executable lifecycle (one repo folder = one git root — there is no monorepo-spanning git, so the worktree is created in the **target folder** `do-folder.sh` resolves):
+
+| Step | Trigger | Action |
+|------|---------|--------|
+| **create** | tier ∈ {FEATURE, SCHEMA} | `Agent isolation:"worktree"` in the resolved repo folder; build happens there, trunk untouched |
+| **merge** | P5 promise-check passes (`do-prove.sh` ok ∧ outcome exit 0) | merge the worktree to that folder's trunk — the cutover; `mark` promise-kept |
+| **abandon** | P5 fails or outcome ≠ 0 | drop the worktree, `warn`; trunk stays clean; back to P4 or re-FRAME |
+| **batch** | `--batch f1,f2,…` | one worktree per feature, each merging on its own P5 (no shared file = parallel) |
+| **split-test** | P4 N-variants | N worktrees; winner merges, losers `warn(0.5)` and discard |
+
+A self-modifying plan (one that edits `.claude/` itself) is the special case: build in a worktree of the **engine repo**, and the merge is the engine cutover — never hot-swap agent files mid-run.
+
 ---
 
 ## Cross-cutting: token & state discipline (from `agentic-patterns.md`)
