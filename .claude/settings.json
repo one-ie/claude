@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(bun *)",
+      "Bash(bunx *)",
+      "Bash(npm run *)",
+      "Bash(bun vitest *)",
+      "Bash(bun biome *)",
+      "Bash(bun tsc *)",
+      "Bash(ls *)",
+      "Bash(git *)",
+      "Bash(rm -rf node_modules)",
+      "Bash(rm -rf node_modules/*)",
+      "Bash(rm -rf node_modules/.vite*)",
+      "Bash(rm -rf node_modules/.astro*)",
+      "Bash(rm -rf node_modules/.cache*)",
+      "Bash(rm -rf */node_modules)",
+      "Bash(rm -rf */node_modules/.vite*)",
+      "Bash(rm -rf */node_modules/.astro*)",
+      "Bash(rm -rf dist)",
+      "Bash(rm -rf dist/*)",
+      "Bash(rm -rf */dist)",
+      "Bash(rm -rf */dist/*)",
+      "Bash(rm -rf .vite)",
+      "Bash(rm -rf .vite/*)",
+      "Bash(rm -rf */.vite)",
+      "Bash(rm -rf .astro)",
+      "Bash(rm -rf .astro/*)",
+      "Bash(rm -rf */.astro)",
+      "Bash(rm -rf .next)",
+      "Bash(rm -rf .next/*)",
+      "Bash(rm -rf .turbo)",
+      "Bash(rm -rf .turbo/*)",
+      "Bash(rm -rf .cache)",
+      "Bash(rm -rf .cache/*)",
+      "Bash(rm -rf .wrangler)",
+      "Bash(rm -rf .wrangler/*)",
+      "Bash(rm -rf */.wrangler)",
+      "Bash(rm -rf .vercel)",
+      "Bash(rm -rf .output)",
+      "Bash(rm -rf .nuxt)",
+      "Bash(rm -rf .svelte-kit)",
+      "Bash(rm -rf .parcel-cache)",
+      "Bash(rm -rf build)",
+      "Bash(rm -rf build/*)",
+      "Bash(rm -rf */build)",
+      "Bash(rm -rf coverage)",
+      "Bash(rm -rf coverage/*)",
+      "Bash(rm -rf .nyc_output)",
+      "Bash(rm -rf .dev)",
+      "Bash(rm -rf .dev/*)",
+      "Bash(rm -rf playwright-report)",
+      "Bash(rm -rf test-results)",
+      "Bash(rm -rf .vitest)",
+      "Bash(rm -rf .tsbuildinfo)",
+      "Bash(rm -rf *.tsbuildinfo)",
+      "Bash(rm -rf tsconfig.tsbuildinfo)",
+      "Bash(rm -rf node_modules/.vite node_modules/.astro .astro*)",
+      "Bash(rm -rf */node_modules/.vite */node_modules/.astro */.astro)",
+      "Bash(rm -rf **/node_modules/.vite)",
+      "Bash(rm -rf **/node_modules/.astro)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf ~/*)",
+      "Bash(rm -rf $HOME*)",
+      "Bash(rm -rf /Users*)",
+      "Bash(rm -rf /etc*)",
+      "Bash(rm -rf /var*)",
+      "Bash(rm -rf /usr*)",
+      "Bash(rm -rf /System*)",
+      "Bash(rm -rf .git)",
+      "Bash(rm -rf .git/*)",
+      "Bash(rm -rf */.git)",
+      "Bash(rm -rf */.git/*)",
+      "Bash(rm -rf src)",
+      "Bash(rm -rf src/*)",
+      "Bash(rm -rf */src)",
+      "Bash(rm -rf */src/*)",
+      "Bash(rm -rf plans)",
+      "Bash(rm -rf plans/*)",
+      "Bash(rm -rf */plans)",
+      "Bash(rm -rf schema)",
+      "Bash(rm -rf schema/*)",
+      "Bash(rm -rf migrations)",
+      "Bash(rm -rf migrations/*)",
+      "Bash(rm -rf packages)",
+      "Bash(rm -rf packages/*)",
+      "Bash(rm -rf one.ie)",
+      "Bash(rm -rf one.ie/*)",
+      "Bash(rm -rf agents)",
+      "Bash(rm -rf agents/*)",
+      "Bash(rm -rf transcripts)",
+      "Bash(rm -rf .claude)",
+      "Bash(rm -rf .claude/*)",
+      "Bash(rm -rf */.claude)",
+      "Bash(rm -rf .env*)",
+      "Bash(rm -rf */.env*)",
+      "Bash(rm -rf .dev.vars*)",
+      "Bash(rm -rf */.dev.vars*)",
+      "Bash(rm -rf *.sqlite)",
+      "Bash(rm -rf *.sqlite-*)",
+      "Bash(rm -rf *.db)",
+      "Bash(rm -rf .)",
+      "Bash(rm -rf ..)",
+      "Bash(rm -rf ../*)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Read(.env*)",
+      "Read(**/secrets/**)",
+      "Read(**/node_modules/**)",
+      "Read(**/build/**)",
+      "Read(**/.wrangler/**)",
+      "Read(**/.astro/**)",
+      "Read(**/.next/**)",
+      "Read(**/.turbo/**)",
+      "Read(**/.vite/**)",
+      "Read(**/coverage/**)",
+      "Read(**/playwright-report/**)",
+      "Read(**/test-results/**)",
+      "Read(**/generated/**)",
+      "Read(**/*.tsbuildinfo)",
+      "Read(**/*.min.js)",
+      "Read(**/*.min.css)",
+      "Read(**/bun.lock)",
+      "Read(**/package-lock.json)",
+      "Read(**/pnpm-lock.yaml)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-check.sh",
+            "timeout": 15000
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sync-todo-docs.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/design-check.sh",
+            "timeout": 5000,
+            "blocking": true
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tool-signal.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/task-complete-verify.sh",
+            "timeout": 120000,
+            "blocking": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-end-verify.sh",
+            "timeout": 30000,
+            "blocking": false
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-reflect.sh",
+            "timeout": 10000,
+            "blocking": false
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
+            "timeout": 5000,
+            "blocking": false
+          }
+        ]
+      }
+    ]
+  }
+}

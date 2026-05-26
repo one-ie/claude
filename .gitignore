@@ -1,0 +1,24 @@
+# This root repo versions ONLY the engine + planning layer (.claude, plans, text, docs).
+# Each top folder below is its OWN git repo / buildable unit — never tracked here.
+/one.ie/
+/packages/
+/agents/
+/api/
+/schema/
+/sync/
+/backup/
+/donal/
+/media/
+/node_modules/
+
+# upgrade snapshots
+.do-upgrade-backup-*.tgz
+
+# transient /do per-cycle state (regenerated each cycle)
+.w0-baseline.json
+.w2-spec.json
+.w2-doc-plan.json
+.w3-receipts.json
+.w4-improvements.json
+.compress-*.txt
+.recon-*.json

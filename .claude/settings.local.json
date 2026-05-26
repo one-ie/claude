@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(gh repo *)",
+      "WebFetch(domain:github.com)",
+      "Bash(grep -nA5 '^batches:' plans/social-poster.md)"
+    ]
+  },
+  "skillOverrides": {
+    "youtube-subs": "name-only",
+    "ai-seo": "name-only",
+    "email-best-practices": "name-only",
+    "frontend-design": "name-only",
+    "programmatic-seo": "name-only",
+    "react-email": "name-only",
+    "resend": "name-only",
+    "sandbox-sdk": "name-only",
+    "seo-audit": "name-only",
+    "tanstack-query-best-practices": "name-only"
+  }
+}
