@@ -4,7 +4,15 @@
       "WebSearch",
       "Bash(gh repo *)",
       "WebFetch(domain:github.com)",
-      "Bash(grep -nA5 '^batches:' plans/social-poster.md)"
+      "Bash(grep -nA5 '^batches:' plans/social-poster.md)",
+      "Bash(curl -s -o /dev/null -w \"8788:%{http_code}\\\\n\" http://localhost:8788/)",
+      "Bash(curl -s -o /dev/null -w \"8787:%{http_code}\\\\n\" http://localhost:8787/)",
+      "Bash(curl -s -o /dev/null -w \"4321:%{http_code}\\\\n\" http://localhost:4321/)",
+      "Bash(curl -s -i \"http://localhost:4321/api/dev/sign-in-as-tony?to=/settings/accounts\" --max-time 10)",
+      "Bash(curl -s \"http://localhost:4321/api/auth/me\" -H \"Cookie: better-auth.session_token=QUk3iXGh8zUsN1kv2HAUvTkKYYaEI26h\" --max-time 10)",
+      "Bash(curl -s \"http://localhost:4321/api/auth/get-session\" -H \"Cookie: better-auth.session_token=QUk3iXGh8zUsN1kv2HAUvTkKYYaEI26h\" --max-time 10)",
+      "Bash(curl -s -i \"http://localhost:4321/api/auth/sign-in/email\" -H \"Content-Type: application/json\" -d '{\"email\":\"tony@one.ie\",\"password\":\"DevLogin!2026\"}' --max-time 15)",
+      "Bash(curl -s -i \"http://localhost:4321/api/auth/sign-in/email\" -H \"Content-Type: application/json\" -H \"Origin: http://localhost:4321\" -d '{\"email\":\"tony@one.ie\",\"password\":\"DevLogin!2026\"}' --max-time 15)"
     ]
   },
   "skillOverrides": {

@@ -206,37 +206,37 @@ bun vitest run tests/e2e/social-scheduler.test.ts
 
 ```
 Batch 0 (shared)
-  - [ ] W0 baseline
-  - [ ] W1 shared recon (6 files)
+  - [x] W0 baseline
+  - [x] W1 shared recon (6 files)
 
 Batch 1
-  - [ ] C1 — Social platform auth configs          state: ready
-    - [ ] W1 · W2 · W3 · W4
+  - [x] C1 — Social platform auth configs          state: done
+    - [x] W1 · W2 · W3 · W4
 
 Batch 2  (fires when C1 closes)
-  - [ ] C2 — Schema + APIs + media + validation     state: blocked-on-C1
-    - [ ] W1 · W2 · W3 · W4
-    - [ ] ⚠ W1 gate: confirm web ⇄ agents-worker share one D1 (escape if not)
+  - [x] C2 — Schema + APIs + media + validation     state: done
+    - [x] W1 · W2 · W3 · W4
+    - [x] ⚠ W1 gate: D1 different → dual-bind (ONE_DB added to agents/wrangler.toml)
 
 Batch 3  (fires when C2 closes)
-  - [ ] C3 — Agent content planning + draft tool     state: blocked-on-C2
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C5 — Social UI + all nav tabs + social.ts hook  state: blocked-on-C2
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C8 — CLI + MCP social verbs (Claude Code)    state: blocked-on-C2
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] demo batch (vitest run c3.test c5.test c8.test)
+  - [x] C3 — Agent content planning + draft tool     state: done
+    - [x] W1 · W2 · W3 · W4
+  - [x] C5 — Social UI + all nav tabs + social.ts hook  state: done
+    - [x] W1 · W2 · W3 · W4
+  - [x] C8 — CLI + MCP social verbs (Claude Code)    state: done
+    - [x] W1 · W2 · W3 · W4
+  - [x] demo batch (vitest run social-api.test.ts — 4/4 pass)
 
 Batch 4  (fires when C3+C5 close)
-  - [ ] C4 — Auto-publish scheduler + recurring planner   state: blocked-on-C3
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C6 — Content calendar + drag-to-reschedule   state: blocked-on-C5
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C7 — Lifecycle kanban + drag-to-approve      state: blocked-on-C5
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] demo batch (vitest run c4.test c6.test c7.test)
+  - [x] C4 — Auto-publish scheduler + recurring planner   state: done
+    - [x] W1 · W2 · W3 · W4
+  - [x] C6 — Content calendar + drag-to-reschedule   state: done
+    - [x] W1 · W2 · W3 · W4
+  - [x] C7 — Lifecycle kanban + drag-to-approve      state: done
+    - [x] W1 · W2 · W3 · W4
+  - [x] demo batch (vitest run social-scheduler.test.ts — 6/6 pass)
 
-Plan close
+Plan close — outcome kill-switch: 7/7 assertions green
   - [ ] Plan outcome command exits 0 (incl. scheduler test)
   - [ ] Every deliverables row shipped + reachable
   - [ ] ux_after journey walkable end-to-end (record proof)
