@@ -424,6 +424,7 @@ Log: `W4: security=N.NN  stability=N.NN  simplicity=N.NN  speed=N.NN  composite=
 **Cycle close (hard gate):**
 All 4 waves complete → `/close --todo <slug> --cycle N`
 - Emit `do:close` [`cycle:N`, `wave:gate`]
+- Emit `signal("cost:cycle", { tokens, model, composite })` — token spend (from the W4 `tokens` receipt) → substrate pheromone. `cost:cycle` is an event, not a new verb — reuse `signal()` verbatim. If the cycle's tier ceiling (C7) is exceeded → also `warn` and flag justify-or-drop.
 - Write **one** learnings.md entry (cycle summary — do not write per-wave entries; include `goal-fit=N.NN`, `deliverable=<path>`, `ux-proof=<one-line>`)
 - Verify entry written; block next cycle if skipped
 - **Deliverable proof captured** — curl output / screenshot path / log line that proves the cycle's `Deliverable:` row is live. Without it, cycle does not close.

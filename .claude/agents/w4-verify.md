@@ -24,6 +24,7 @@ The rubric is not a verdict; it is a map forward.
 - tsc:     <pass|fail>   errors=<N>
 - vitest:  <pass|fail>   passed=<N>/<total>  failed=<N>  flaky=<N>
 - buildMs: <N>ms   (bun run build; compare to W0 baseline)
+- tokens:  <input>/<output>/<cache_read> per wave (W1+W2+W3+W4) — the spend receipt the cycle close turns into a `cost:cycle` signal
 
 ### Code Rubric (one/rubrics.md — Code Rubric section)
 - security:   <0.00–1.00>   <why — one line>
