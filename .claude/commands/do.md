@@ -100,7 +100,14 @@ Counter resets to 0 on streak break. **Source of truth is `.do-trust.json` `{lev
 | `--show` | Cycle frame rendering (when plan `show: true`) | Read `do-show.md` |
 | `--improve` | Meta-improvement from drift signals | Read `do-improve.md` |
 
-**Intent mode:** when args are not a TODO filename/`--flag`, read `.claude/commands/do-intent.md` before proceeding.
+**Intent mode (the front door — `/do <anything>`):** when args are a bare intent (not a TODO filename / `--flag`), read `.claude/commands/do-intent.md`, then run the lifecycle:
+
+1. **Restate as a goal** — one sentence: *"a {persona} can {outcome} they couldn't before."* `do-intent` locate: does a todo / spec / feature already exist?
+2. **Infer tier** — `.claude/scripts/do-tier.sh --intent "<idea>" $(git diff --name-only)` → tier + **pruned spine** + classifier + token ceiling. **Default down** when unsure.
+3. **Human gate (the only one)** — confirm the goal sentence + tier in one shot; never interrogate. The confirm is a `mark` that **promotes the seed** (`promoteSeed`, from `lib/substrate.ts`). A pre-agreed backlog auto-skips this gate.
+4. **Walk the tier-pruned spine** (read `.claude/commands/do-lifecycle.md` for each phase's composed command). Presence-check only the ENABLED stops, backfill the gaps, skip what exists:
+   `text/<f>.md`? no→FRAME · `plans/<f>.md`? no→SPEC · then **CLARIFY** (FEATURE/SCHEMA only) · `plans/<f>-todo.md`? no→PLAN · then **ANALYZE** (`do-analyze.sh` — CRITICAL halts before build) · code? (`do-survey.sh`) no→BUILD (the W0→W4 engine below) · tests? · docs? · proof (`do-prove.sh`) · release.
+   A PATCH walks only `code`+`verify` (0 agent spawns); a FEATURE walks all stops + both gates. The human owns the goal; `/do` owns everything below it.
 
 **Skill check:** infer from task tags → `ls .claude/skills/{name}/` → ready (proceed) / stale (warn) / missing (offer options). Block only if missing+required.
 
