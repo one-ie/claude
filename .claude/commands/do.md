@@ -50,6 +50,8 @@ Log: `tier=simple  spawns=2-3`
 
 **COMPLEX → full W1→W4** (see wave specs below)
 
+**One gradient, two scopes.** The classifier above (TRIVIAL/SIMPLE/COMPLEX) sizes the *build* — agent spawns, model routing. The *product* tier from `.claude/scripts/do-tier.sh` (PATCH/FIX/FEATURE/SCHEMA) sizes the *lifecycle* — which spine stops + gates run — and emits a per-tier token ceiling. They compose, never compete: `do-tier.sh` maps each product tier to its classifier (PATCH→TRIVIAL, FIX→SIMPLE, FEATURE/SCHEMA→COMPLEX) and pruned spine. Token economy is automatic — a typo gets the 2-stop spine + 0 spawns; only a FEATURE earns the full pipeline. Cycle close compares `cost:cycle` to the tier ceiling; over → `warn` + justify-or-drop.
+
 ---
 
 ## Loop optimizations
