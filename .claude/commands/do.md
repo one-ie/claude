@@ -290,6 +290,8 @@ Log: `W2: decisions=N  fan_out=N`
 
 **W3 — Edits**
 
+**Soft-resume check (before anything):** if `.w3-receipts.json` exists with specs still unapplied (fewer receipts than `.w2-spec.json` `diff_specs`), the previous W3 was interrupted → **skip W0/W1/W2 and resume W3** from the first spec not in the receipts file. Otherwise proceed normally.
+
 **Pre-validation (parallel — before spawning any agent):**
 Run all anchor checks simultaneously in parallel Bash calls:
 ```bash
@@ -427,6 +429,7 @@ All 4 waves complete → `/close --todo <slug> --cycle N`
 - Emit `signal("cost:cycle", { tokens, model, composite })` — token spend (from the W4 `tokens` receipt) → substrate pheromone. `cost:cycle` is an event, not a new verb — reuse `signal()` verbatim. If the cycle's tier ceiling (C7) is exceeded → also `warn` and flag justify-or-drop.
 - Write **one** learnings.md entry (cycle summary — do not write per-wave entries; include `goal-fit=N.NN`, `deliverable=<path>`, `ux-proof=<one-line>`)
 - Verify entry written; block next cycle if skipped
+- Delete `.w3-receipts.json` (cycle complete — soft-resume state no longer needed)
 - **Deliverable proof captured** — curl output / screenshot path / log line that proves the cycle's `Deliverable:` row is live. Without it, cycle does not close.
 - **Plan-outcome re-check (zero LLM tokens):** evaluate `$(yq '.outcome' plans/{todo-file}.md)`. Exit 0 → mark remaining cycles `state: justify-or-drop`, halt `--auto`, prompt user to drop or justify each. Plan does not close until this command exits 0.
 

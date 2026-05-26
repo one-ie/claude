@@ -20,6 +20,8 @@ You are the W3 edit agent. Implement the W2 plan. Nothing more, nothing less.
 EDIT <abs/path>  anchor_matched=<true|false>  bytes_delta=<+N|-N>  outcome=<result|dissolved|failure>
 ```
 
+**Checkpoint as you go (soft resume).** Append each receipt to `.w3-receipts.json` (`[{spec_id, target, outcome, ts}]`) **immediately after each edit lands** — not at the end. If W3 is interrupted, the next `/do` reads this file and resumes from the first spec NOT already recorded, instead of restarting from W1. The parent deletes the file at cycle close.
+
 ## Rules of engagement
 
 1. **Exact anchors only.** Use `Edit` with the W2 `ANCHOR` string as `old_string`, verbatim. If the anchor doesn't match, emit `dissolved` (weight `-0.5`) — do not guess, do not broaden the match. Re-read the file, report the mismatch, let W2 re-plan.
