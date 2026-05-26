@@ -315,13 +315,13 @@ This plan rewrites the very engine that runs it (`do.md` + the four W1–W4 agen
 ```
 Batch 0   - [ ] W0 baseline   - [ ] W1 shared recon
 Batch 1   - [x] C0 folder-aware verify  - [x] C1 .w2-spec+doc-plan (cf681b3)  - [x] C2 .do-trust (6704cfe)  - [x] C3 cost:cycle (754dd1e)  - [x] C4 .w3-receipts (43ba67b)  ✓ engine consistency verified
-Batch 2   - [ ] C5 seed       - [x] C7 tiers (858b50f)  - [x] C9 survey (858b50f)  - [x] C10 reconcile (858b50f)
-Batch 3   - [ ] C6 INTAKE+spine   - [ ] C8 worktree   - [ ] C11 PROVE   - [x] C14 ANALYZE (858b50f)
-Batch 4   - [ ] C12 merge + CLARIFY (kill /do-loop)
-Batch 5   - [ ] C13 smoke (outcome)
+Batch 2   - [x] C5 seed (one.ie b8b8b4c2 + ideas.md c444b37; 4/4 tests, tsc clean)  - [x] C7 tiers (858b50f)  - [x] C9 survey (858b50f)  - [x] C10 reconcile (858b50f)
+Batch 3   - [x] C6 INTAKE+spine (38b2397)   - [x] C8 worktree (026e81d)   - [x] C11 PROVE (9a417d4)   - [x] C14 ANALYZE (858b50f)
+Batch 4   - [x] C12 merge + CLARIFY, /do-loop killed (ea2527f)
+Batch 5   - [x] C13 smoke (a6b4cd5) — exits 0
 Plan close
-  - [ ] do-smoke.sh exits 0   - [ ] canary `/do <idea>` run logged   - [ ] /do-loop command gone, single entry
-  - [ ] every D# reachable (ANALYZE coverage = 100% on this very plan)   - [ ] do-lifecycle.md no longer describes fiction
+  - [x] do-smoke.sh exits 0   - [ ] canary `/do <idea>` run logged (the LLM loop — bash can't drive it)   - [x] /do-loop command gone, single entry
+  - [x] every D# reachable (ANALYZE coverage = 100% on this very plan)   - [x] do-lifecycle.md no longer describes fiction
   - [ ] final compress sweep + learnings append
 ```
 
