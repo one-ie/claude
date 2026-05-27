@@ -1,4 +1,4 @@
-mo# Resell an AI brand to every client. They never leave.
+Resell an AI brand to every client. They never leave.
 
 ONE is the platform you buy, white-label, and sell to your clients as your own. From the day the contract signs, they have a marketing, sales, and service team under your brand and on your invoice. Every conversation those teams have stays with you. When a client moves on, the data doesn't go with them. That is the moat. It compounds.
 
