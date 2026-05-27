@@ -1112,7 +1112,7 @@ begins.
 ## See also
 
 - [memory.md](memory.md) — substrate memory model
-- [agents-memory.md](agents-memory.md) — per-agent recall
+- [memory-agents.md](memory-agents.md) — per-agent recall
 - [world-memory.md](world-memory.md) — collective learning
 - [chat-memory-todo.md](chat-memory-todo.md) — shipped chat memory
 - [memory-c4-todo.md](memory-c4-todo.md) — role gates (load-bearing for this UI)

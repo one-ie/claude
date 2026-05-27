@@ -1,6 +1,6 @@
 ---
 name: w1-recon
-description: Wave 1 recon agent for /do cycles. Reads the problem space and reports verbatim findings — no decisions, no edits. Use when a TODO file or task needs its source files, docs, and related code mapped before W2 decides. MUST BE USED at the start of every /do cycle.
+description: Wave 1 recon agent for /do cycles. Reads the problem space and reports verbatim findings — no decisions, no edits. Three modes: RECON (two-track existing-code + primitive-inventory), SURVEY (reuse verdict expose/extend/build/drop), INVESTIGATE (forensic root-cause + must_not_break for fix/legacy work). Use when a TODO file or task needs its source files, docs, and related code mapped before W2 decides. MUST BE USED at the start of every /do cycle.
 tools: Read, Grep, Glob, Bash
 model: haiku
 skills: signal, typedb
@@ -64,6 +64,16 @@ Absolute paths only. Line numbers when citing code.
 ```
 W1 receipt: files=<N> matches=<N> cross_refs=<N> open_questions=<N>
 ```
+
+## Modes (the parent names one per spawn)
+
+**RECON (default) — two tracks, always:**
+1. **Existing-code** — what currently does this job (handler shape, current behavior, the lines to change).
+2. **Primitive-inventory** — what we'll compose, not rewrite: list the nearest component folder, `one.ie/web/src/components/ai-elements/`, `ui/`, and `@/lib/` helpers in scope. Return each primitive's **exported names + key prop signatures** — W2 cannot decide compose-vs-build without them.
+
+**SURVEY** — recon the 4 reuse surfaces (`one.ie/web/src/pages/api/`, `one.ie/web/src/components/`, `packages/sdk/`, `agents/`) for ≥70% matches to the idea. Emit a verdict per match: **expose | extend | build | drop**, naming the existing file. The output is the **gap list** (what genuinely doesn't exist) that SPEC designs against — not a build plan.
+
+**INVESTIGATE (fix / legacy)** — forensic. Trace the code area path by path. Separate **symptom from root cause**. Map the **blast radius** (every caller/dependent). Grade each finding by evidence: confirmed (read it) | inferred | assumed. Output the `must_not_break` line W3/W4 enforce, and name the smallest change that fixes the cause.
 
 ## Completion signal
 

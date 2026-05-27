@@ -365,7 +365,7 @@ The substrate doesn't have a memory system bolted on. The substrate IS a memory 
 
 ## See Also
 
-- [agents-memory.md](agents-memory.md) -- How individual agents remember
+- [memory-agents.md](memory-agents.md) -- How individual agents remember
 - [agents-how-they-work.md](agents-how-they-work.md) -- Agent lifecycle and routing
 - [routing.md](routing.md) -- The formula that reads world memory
 - [dictionary.md](dictionary.md) -- The six verbs (signal, mark, warn, fade, follow, harden)

@@ -27,6 +27,8 @@ The rubric is not a verdict; it is a map forward.
 - tokens:  <input>/<output>/<cache_read> per wave (W1+W2+W3+W4) — the spend receipt the cycle close turns into a `cost:cycle` signal
 
 ### Code Rubric (one/rubrics.md — Code Rubric section)
+- goal-fit:   <0.00–1.00>   <why — did this move the plan outcome closer? one line>
+  → improve: <what the diff does NOT yet deliver toward the goal> | "clean" if 1.00
 - security:   <0.00–1.00>   <why — one line>
   → improve: <file:line — specific gap> | "clean" if 1.00
 - stability:  <0.00–1.00>   <why — one line>
@@ -35,11 +37,11 @@ The rubric is not a verdict; it is a map forward.
   → improve: <function or import that can shrink, with line ref> | "clean" if 1.00
 - speed:      <0.00–1.00>   <why — one line>
   → improve: <Lighthouse audit + component, or bundle culprit> | "clean" if 1.00
-- composite:  <N.NN>        (0.35·sec + 0.30·sta + 0.25·sim + 0.10·spd)
+- composite:  <N.NN>        (0.35·goal-fit + 0.20·sec + 0.20·sta + 0.15·sim + 0.10·spd)
 
 ### Gate
-- threshold: 0.65
-- outcome:   <pass ✓ | fail ✗>
+- threshold:  composite ≥ 0.65  AND  goal-fit ≥ 0.50 (hard)
+- outcome:    <pass ✓ | fail ✗>
 
 ### Cross-consistency
 - <check 1 name> : <result>
@@ -61,17 +63,24 @@ The rubric is not a verdict; it is a map forward.
 3. If deterministic checks pass → score the code rubric. Target is 1.0 on every dim.
    Full KPIs, scoring bands, and improvement format are in `one/rubrics.md` — Code Rubric.
 
-4. **Security (0.35):** grep the diff for `/api[_-]?key|secret|password|token/i`, `eval(`,
+3.5. **Goal-fit (0.35 — the heaviest dim, hard gate ≥ 0.50):** re-read the cycle's
+   `Goal delta:` / plan `outcome:` and verify the shipped diff actually moves it. Confirm the
+   deliverable proof is present (curl / screenshot / log) and the `ux_after` journey is reachable.
+   Clean, fast, safe code that does NOT advance the goal scores low here and **cannot close** —
+   goal-fit < 0.50 fails the cycle regardless of the other four dims. `→ improve:` names what the
+   goal still needs.
+
+4. **Security (0.20):** grep the diff for `/api[_-]?key|secret|password|token/i`, `eval(`,
    `dangerouslySetInnerHTML`. Check every `src/pages/api/*.ts` route validates input with Zod
    at the boundary. CF Worker env via `context.env` only. No wildcard CORS headers.
    Score 1.0 = all greps return 0. For every gap, emit `→ improve: file:line — what`.
 
-5. **Stability (0.30):** biome + tsc + vitest already ran. Now check: no new `any`, no
+5. **Stability (0.20):** biome + tsc + vitest already ran. Now check: no new `any`, no
    `@ts-ignore` without WHY comment, no silent returns (Rule 1), no wall-clock units in new
    code or docs (Rule 2), no retired names `knowledge|connections|people|node|scent|alarm|
    trail|colony`. Score 1.0 = all zero. For each gap, emit `→ improve: exact location`.
 
-6. **Simplicity (0.25):** the philosophy is small, focused files. The substrate — the
+6. **Simplicity (0.15):** the philosophy is small, focused files. The substrate — the
    entire schema + engine — is 200 lines total. Use that as your reference point.
 
    ```bash
@@ -128,7 +137,7 @@ The rubric is not a verdict; it is a map forward.
    Score 1.0 = all Lighthouse 100, bundle ≤ W0, agent lines ≤ W0, no context stuffing, cache ≥ 80%.
    For each gap, name the audit, component, or file.
 
-8. Composite = `0.35·security + 0.30·stability + 0.25·simplicity + 0.10·speed`. Gate ≥ 0.65.
+8. Composite = `0.35·goal-fit + 0.20·security + 0.20·stability + 0.15·simplicity + 0.10·speed`. Gate: composite ≥ 0.65 AND goal-fit ≥ 0.50 (hard).
 
 9. Must-not checks (bypass composite — immediate warn):
    - Hardcoded secret or API key → `warn(1)` on security, cycle fails.

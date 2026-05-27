@@ -306,27 +306,7 @@ update — pheromone ranks alternatives, and the winner takes the routing.
 
 ---
 
-## Memory Operations
-
-Every memory verb is already a substrate verb:
-
-| Verb | What it does | Primitive |
-|------|-------------|-----------|
-| **remember** | record an episode | `signal()` |
-| **recognize** | find a path | `sense(edge)` / `danger(edge)` |
-| **recall** | query the brain | `persist().recall(match)` |
-| **reinforce** | make memory stronger | `mark(edge)` |
-| **suppress** | make memory weaker | `warn(edge)` |
-| **forget** | decay unused memory | `fade()` — asymmetric, resistance 2× faster |
-| **erase** | structural delete (GDPR) | TQL `delete $u isa actor` — ontology cascades |
-| **generalize** | episode → hypothesis | `know()` — promote highway to law |
-| **introspect** | what do I know? | `open()`, `highways()`, `recall()` |
-| **reveal** | what do you know about *me*? | `persist.reveal(uid)` — full memory card |
-| **imagine** | what *haven't* we learned? | `frontier(uid)` — tag clusters the actor has never touched |
-
-Memory is not CRUD on a store. Memory is **routing that learns from
-outcomes**. A path you used successfully is a memory that strengthens.
-A path that led nowhere is a memory that fades.
+upda
 
 ---
 

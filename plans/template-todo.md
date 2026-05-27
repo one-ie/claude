@@ -34,9 +34,11 @@ ux_delta: ""               # ONE sentence — the specific improvement (fewer cl
 # without re-asking. Defaults below are conservative — raise per plan.
 
 parallel_budget:           # how many of each model can run simultaneously
-  haiku:   20              # recon + verify rubric agents
-  sonnet:  10              # W3 edit agents — one per file, parallel
-  opus:    2               # W2 architectural decisions (rarely > 1)
+  # Two dials per agent: MODEL (haiku/sonnet/opus/bash) AND EFFORT (none/low/medium/high/xhigh).
+  # Pick the cheapest model that can decide, then the lowest effort that holds. See plans/templates.md.
+  haiku:   20              # recon (low) + verify rubric (medium) agents
+  sonnet:  10              # W3 edit agents — one per file, parallel (low mechanical / medium genuine edit)
+  opus:    2               # W2 architectural decisions (high) / substrate reconciliation (xhigh) — rarely > 1
 
 batches:                   # plan-level cycle DAG, flattened into batches.
   # Cycles inside the same batch run their waves IN PARALLEL.
@@ -225,18 +227,23 @@ W4's "cycle demo passes" line resolves to `$(command) && echo pass`. The test fi
 
 If a cycle needs more than 150 LOC of test, it's actually two cycles.
 
-### Model tier × wave × token math
+### Model × effort × wave × token math
+
+Two dials, set per agent. **Model** = cheapest that can decide. **Effort** = lowest that holds.
+Full per-stage routing in `plans/templates.md`.
 
 ```
-W1 recon      Haiku × N parallel       skip if ≤5 files (inline)
-W2 decide     Opus if architectural    Sonnet if mechanical  inline if trivial
-W3 edit       Sonnet × N parallel      single message
-W4 verify     bash `bun vitest run`    0 LLM tokens
-              spawn 5 Haiku rubric     ONLY if verify fails AND tier=complex
-demo gate     test exit code           0 tokens
+W1 recon      Haiku · low      × N parallel    skip if ≤5 files (inline)
+W2 decide     Opus · high      architectural   Opus · xhigh if substrate/schema
+              Sonnet · medium  mechanical       inline if trivial
+W3 edit       Sonnet · low     mechanical edit  × N parallel, single message
+              Sonnet · medium  genuine restructure
+W4 verify     bash · none      `bun vitest run`  0 LLM tokens
+              Haiku · medium   × 5 rubric        ONLY if verify fails AND tier=complex
+demo gate     bash · none      test exit code    0 tokens
 ```
 
-Every check that can be a bash command is a bash command. Tests are bash commands. **The cycle closes when the test exits 0** — no LLM judges the outcome.
+Every check that can be a bash command is a bash command. Tests are bash commands. **The cycle closes when the test exits 0** — no LLM judges the outcome. Progressive disclosure applies at every wave: a Haiku gets the last few turns and top paths, never the full history; a context doc loads only when a `context_triggers:` pattern matches.
 
 ### Autonomy gates
 
@@ -645,6 +652,9 @@ Report: `delta_tsc=±N  delta_loc=±N  compress_orphans=N  new_files=N  primitiv
 
 ## See also
 
+- `plans/templates.md` — per-stage template/skill/agent registry + model·effort routing
+- `plans/template-spec.md` — the SPEC template this todo is planned from (P3)
+- `text/template-frame.md` — the FRAME promise template (P1)
 - `docs/relevant-spec.md` — {why relevant to this plan}
 - `src/relevant/file.ts` — {why relevant}
 - `one/dictionary.md` — canonical names (always)

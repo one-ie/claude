@@ -41,11 +41,13 @@ type: refactor | fix | feature | doc   (controls W4 simplicity benchmark)
 ### Focus check (before W3)
 - <file> — <N> lines — <one thing | two things → split into X + Y>
 
-### Rubric targets (W4 gate — code rubric: security/stability/simplicity/speed)
+### Rubric targets (W4 gate — code rubric: goal-fit/security/stability/simplicity/speed)
+- goal-fit:   >= 0.80   (<why — this diff moves the plan outcome closer; HARD gate ≥ 0.50>)
 - security:   >= 0.90   (<why — boundary validation, no secrets, no injection vectors>)
 - stability:  >= 0.85   (<why — tests pass, no any, no silent returns>)
 - simplicity: >= 0.85   (<why — files focused, functions ≤ 20 lines, no ceremony>)
 - speed:      >= 0.80   (<why — Lighthouse held, bundle ≤ W0, tokens lean>)
+- composite = 0.35·goal-fit + 0.20·security + 0.20·stability + 0.15·simplicity + 0.10·speed (gate ≥ 0.65)
 
 ### Docs to update in parallel (Rule: docs-first)
 - docs/<file>.md — <term/section affected>
@@ -93,6 +95,18 @@ Emit `{"renames":[],"touched_docs":[],"contract_dirs":[]}` for a trivial cycle (
 1. **Closed loop** — every diff spec is one `.on()` handler or one anchored edit. If a branch has no receiver in W3, drop it.
 2. **Structural time** — plan in tasks-per-wave and waves-per-cycle. Never "by Friday", "next sprint", "in 2 hours". Use task IDs instead.
 3. **Deterministic receipts** — end with rubric targets expressed as numbers. A plan that can't be scored can't close.
+
+## Compress check (before any new primitive — runs first)
+
+Before emitting a diff spec that adds an HTTP endpoint, SDK method, MCP tool, CLI verb, schema field, event name, component, or error type, write:
+
+```
+PRIMITIVE: <what's being added>
+COMPOSE:   <3 existing primitives that cover it>
+VERDICT:   compose (remove the addition) | extend (add field/tag to existing) | new (justify in one sentence)
+```
+
+`compose` → drop the new file from the diff, slot the behavior into the closest existing primitive. `new` → requires a same-diff doc edit. Check the canonical doc per primitive type before deciding: HTTP/SDK/MCP/CLI → `plans/agent-api.md`; substrate verb → `one/dsl.md`; dimension → `one/one-ontology.md`; any name → `dictionary.md`. Default verdict is `compose`. Emit `compress: compose=X extend=Y new=Z` in receipts. The pre-mortem + decisions for the design itself live in `plans/<slug>.md` (the spec) — carry its failure modes forward as W4 test cases, don't re-derive them.
 
 ## Decision algorithm
 
