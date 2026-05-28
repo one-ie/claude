@@ -171,13 +171,23 @@ Extract the soul function. Nothing breaks. Both workers still use their own copy
 ### Step 5 — Make `channels` multi-tenant
 Change `loadContext` to accept `slug` from the request body. Fall back to `WORKSPACE_SLUG` env for dedicated bot deployments. Add `CONTENT` R2 binding to `wrangler.toml`. Import `readWorkspaceSoul` from `@oneie/sdk`.
 
-### Step 6 — Move web tools into `channels`
-Copy `chat.ts` tool definitions into `channels/src/tools/web.ts` and `tools/workspace.ts`. Wire them into `makeAgent` behind the `channel = 'web'` guard. Delete the tool definitions from `chat.ts`.
+### Step 6 — The proxy contract (the keystone)
+chat.ts's tools read Astro `locals` (session, workspaceContext, viewer); `channels` has no `locals`. So before any tool can move, the `/message` contract must carry that data as JSON: `viewer{id,role,owner}`, `surface`, `agentId`, `channel`. Thread these through `CallOptions` + `makeAgent.prepareCall` so tool `execute` reads them. No tools move yet — this is the data spine the rest hangs off.
 
-### Step 7 — Replace `chat.ts` with a proxy
-Once Step 6 is verified, replace `chat.ts` with the 20-line proxy. Add `CHANNELS_URL` env var to `one.ie/web/wrangler.toml`.
+### Step 7 — Tools are a thin skin over the substrate (two layers, zero callbacks)
+chat.ts's ~15 tools resolve against the substrate `channels` already owns — never a fetch back into web:
+- **Pure output envelopes** (`emit_card/section/chips/boq/event`) → `tools/web.ts`, gated `channel='web'`. `emit_card` already exists — reuse it.
+- **Owner ops** (`patch_agent/patch_theme/delegate/field-service/skill/compile/import_skill/draft_social/action`) → `tools/workspace.ts`, gated `channel='web' + viewer.owner`, each resolving natively: D1 writes (`patch_agent`→`agents.frontmatter`, `patch_theme`→`themes.tokens`, `field-service`→`field_service_bookings`, `draft_social`→reuse), `CONTENT` R2 (`skill`/`import` + ported pure `compile`/agent-md parse), or a substrate `signal()` (`delegate`; heavy `eval`→`signal('skill:eval')`).
 
-**Data note:** `channels:${group}` substrate prefix replaces `claw:${group}`. Check D1 + TypeDB for existing rows before deploying Step 5.
+**The rule:** `channels` never fetches `web`. The cross-worker mechanism is the substrate `signal()`/`ask()` receiver namespace — the documented API — not bespoke HTTP. The old "web-callbacks via `WEB_URL`" idea was a cycle (web→channels→web); it's deleted. `delegate_to` was *already* a signal wearing an HTTP disguise.
+
+### Step 8 — Persona: unify the lookup, keep the fallback
+`channels` resolves a per-slug agent from its `.md` in `CONTENT` R2 (`${slug}/agents/${id}.md` → `parseAgentMd`), falling back to `personas[BOT_PERSONA]` then `personas.one`. **`personas.ts` is kept** — `one`/`concierge` have no `.md`, so deleting it would lose the web default. Port `parseAgentMd`/`buildPersonaSystem` into channels (no `@oneie/sdk` dep — channels stays standalone).
+
+### Step 9 — chat.ts → gates + proxy
+Replace chat.ts's LLM/tool/soul block with a `fetch(CHANNELS_URL/message, enrichedBody)` + SSE passthrough (channels already emits the UIMessage SSE the web client expects). **The request-gates stay** — auth, billing pool, rate-limit, x402 receipt, CRO variant+cookie are request-level, not agent logic. chat.ts ends ~80-120 lines of gates around a proxy, not 20. Add `CHANNELS_URL` to `one.ie/web/wrangler.toml`.
+
+**Data note:** the `claw:${group}` substrate prefix is **kept literal** (decoupled from the directory/worker name — the goal is one runtime serving many slugs, not a data-namespace migration). No D1/TypeDB row migration.
 
 ---
 
@@ -187,15 +197,15 @@ Once Step 6 is verified, replace `chat.ts` with the 20-line proxy. Add `CHANNELS
 
 The endpoint: `personas.ts` is deleted. `channels` loads personas at startup by parsing the agent `.md` files from R2 (or the bundled `one.ie/agents/` directory). `BOT_PERSONA` becomes a key into the parsed `.md` inventory rather than a key into a hardcoded map.
 
-This makes "agent definitions are data, not code" fully true — the runtime has no embedded persona content at all.
+This makes "agent definitions are data, not code" true for *per-slug* agents — a workspace's own agents live as `.md` in R2 and drive its turns.
 
-**What needs to happen:**
-- `@oneie/sdk` `parse()` already reads the `.md` frontmatter into a typed structure
-- `channels` calls `parse()` at startup on the bundled or R2-fetched agent files
-- `personas.ts` is deleted; `Persona` type moves to `types.ts`
-- `BOT_PERSONA` env var resolves to a parsed `.md` by `name:` field
+**What actually happens (revised — see Step 8):**
+- `parseAgentMd`/`buildPersonaSystem` are ported into `channels` (no `@oneie/sdk` dep — channels stays standalone)
+- `channels` resolves a per-slug agent from `${slug}/agents/${id}.md` in `CONTENT` R2 at request time (KV-cached)
+- **`personas.ts` is KEPT** as the typed worker-default fallback. The lookup is: per-slug `.md` (R2) → `personas[BOT_PERSONA]` → `personas.one`
+- Why not delete it: `one` (the web default) and `concierge` have **no `.md`** — deleting personas.ts would lose the default agent. Unify the *lookup*, keep the *fallback*.
 
-Not urgent — `personas.ts` works fine and the `.md` files are the canonical source for TypeDB sync. But the next time a persona needs updating, update the `.md` and wire the loader rather than editing TypeScript.
+The elegance is one resolution path with a safe floor, not zero embedded content at the cost of a broken default.
 
 ---
 
@@ -224,4 +234,4 @@ one.ie/agents/       ← agent definitions — data, not code, loaded by channel
 
 1,719 lines of parallel runtimes → ~900 lines of one. 602 lines of dead adapters gone. Same capability. Half the surface area.
 
-**Longer term:** `personas.ts` deleted, personas loaded from `one.ie/agents/*.md` at startup. "Agent definitions are data, not code" becomes fully true.
+**Longer term:** per-slug agents load from `.md` in `CONTENT` R2 (KV-cached); `personas.ts` stays as the typed worker-default fallback. "Agent definitions are data, not code" becomes true for workspace agents, with a safe floor for the defaults.

@@ -7,12 +7,15 @@ mode: evolution
 tags: [runtime, channels, refactor, multi-tenant, dead-code]
 
 # ─── GOAL CONTRACT ───────────────────────────────────────────────────
-goal: "There is exactly one LLM runtime (channels/); one.ie/web is a UI shell that proxies every agent turn to it."
-outcome: "! grep -qE 'streamText|tool\\(' one.ie/web/src/pages/api/chat.ts && test \"$(wc -l < one.ie/web/src/pages/api/chat.ts)\" -le 40 && grep -q CHANNELS_URL one.ie/web/src/pages/api/chat.ts"
-                           # Pinned 2026-05-28 from recon. NOTE: do NOT grep ToolLoopAgent|makeAgent in web —
-                           # that returns 0 today (those are channels-side names); chat.ts's LLM logic is
-                           # streamText + tool(. The streamText/tool( grep is what actually discriminates.
-outcome_asserts: "No LLM/tool/soul logic remains in one.ie/web; chat.ts is a thin auth+proxy to channels."
+goal: "There is exactly one LLM runtime (channels/); one.ie/web gates the request (auth, billing, x402, CRO) then proxies every agent turn to it."
+outcome: "! grep -qE 'streamText|tool\\(|makeAgent|ToolLoopAgent' one.ie/web/src/pages/api/chat.ts && grep -q CHANNELS_URL one.ie/web/src/pages/api/chat.ts"
+                           # REVISED 2026-05-28 (re-plan): dropped the `≤40 lines` clause — it was wrong.
+                           # The request-gates (auth, billing pool, rate-limit, x402 receipt, CRO variant)
+                           # are NOT LLM logic and legitimately STAY in chat.ts around the proxy (~80-120 lines).
+                           # The real discriminator: NO streamText|tool(|makeAgent — the agent turn is gone —
+                           # AND a CHANNELS_URL fetch exists. That proves the runtime moved without pretending
+                           # the gates vanished.
+outcome_asserts: "No LLM/tool/soul logic remains in one.ie/web; chat.ts is auth+billing+CRO gates wrapping a proxy to channels. The agent turn (persona, soul, memory, tools, LLM loop) lives only in channels."
 
 deliverables:
   # C1
@@ -25,12 +28,14 @@ deliverables:
   - file: packages/sdk/src/soul.ts — readWorkspaceSoul() exported from @oneie/sdk (single soul primitive)
   # C5
   - feature: channels multi-tenant — slug read from request body, WORKSPACE_SLUG fallback; CONTENT R2 binding added
-  # C6
-  - file: channels/src/tools/web.ts + channels/src/tools/workspace.ts — web/owner tools moved out of chat.ts, gated by channel='web'
-  # C7
-  - api: one.ie/web/src/pages/api/chat.ts — replaced with ~20-line auth+proxy to channels /message
-  # C8
-  - delete: channels/src/personas.ts — personas loaded from one.ie/agents/*.md at startup via parse()
+  # C6 (the keystone — identity in, capability derived)
+  - feature: proxy contract — channels /message accepts { slug, group, messages, channel, actorId, agentId, surface }. channels DERIVES viewer{role,owner} from (actorId, slug) against ONE_DB — web proves identity, channels owns authorization. Threaded through CallOptions + makeAgent.prepareCall + ctx().
+  # C7 (tools = a thin skin over the substrate; TWO layers, zero callbacks)
+  - file: channels/src/tools/web.ts (emit_* output envelopes, channel='web') + tools/workspace.ts (owner ops resolved DIRECTLY against channels' own D1/CONTENT-R2/gateway — patch_agent→D1 agents, patch_theme→D1 themes, delegate→gateway signal, field-service→D1 insert, skill/compile→R2+pure-lib, draft_social→reuse existing). Heavy libs (eval) + cross-worker effects (roster:changed) → signal()/ask(), never a web fetch.
+  # C8 (unify the lookup, keep the floor)
+  - feature: channels resolves per-slug agent .md from CONTENT R2 (parseAgentMd/buildPersonaSystem ported, no sdk dep); personas.ts KEPT as typed fallback so 'one'/'concierge' (no .md) survive. Order: R2 → personas[BOT_PERSONA] → personas.one.
+  # C9 (web becomes a leaf — closes the outcome)
+  - api: one.ie/web/src/pages/api/chat.ts — request-gates (auth identity, billing, rate-limit, x402, CRO variant+cookie) retained; entire LLM/tool/soul block replaced by fetch(CHANNELS_URL/message, {slug,group,messages,channel:'web',actorId,agentId,surface}) + SSE passthrough. Adds CHANNELS_URL to web wrangler. NO WEB_URL anywhere — nothing calls back into web.
 
 ux_before: "An agent answers differently on web vs Telegram because two separate runtimes (chat.ts 1226 lines + agents/index.ts 493 lines) reimplement soul lookup, provider routing, and tools and have drifted apart."
 ux_after: "An agent answers identically on every surface because all turns route through one channels runtime; web only renders."
@@ -43,46 +48,82 @@ parallel_budget:
   opus:    2
 
 batches:
-  - [C1, C4]               # batch 1: dir rename (foundation) + soul.ts (different package, parallel)
-  - [C2, C3]               # batch 2: ingress rename + delete adapters (both inside renamed dir, independent)
-  - [C5]                   # batch 3: multi-tenant (needs renamed dir + soul.ts)
-  - [C6]                   # batch 4: move web tools into channels (needs makeAgent channel guard)
-  - [C7, C8]               # batch 5: proxy (web/chat.ts) + personas loader (channels/context) — disjoint files
+  # C1-C5 DONE (committed eb8c593 channels / 9ccc080 packages / 663f6a7 root). Re-planned back half:
+  - [C6]                   # batch 4: the proxy contract (keystone) — viewer/surface/agentId through CallOptions
+  - [C7, C8]               # batch 5: tools=substrate skin (web/workspace) ∥ persona R2 loader — disjoint files
+  - [C9]                   # batch 6: gut chat.ts to gates+proxy — composes C7 tools + C8 personas; closes outcome
 
 shared_recon:
   - plans/clean.md
-  - agents/src/index.ts
+  - channels/src/index.ts
+  - channels/src/agents/builder.ts
   - one.ie/web/src/pages/api/chat.ts
-  - agents/src/prompt.ts
-  - agents/wrangler.toml
+  - channels/src/types.ts
 
 source_of_truth:
   - plans/clean.md
-  - agents/src/index.ts
+  - channels/src/index.ts
+  - channels/src/agents/builder.ts
   - one.ie/web/src/pages/api/chat.ts
-  - agents/src/prompt.ts
-  - agents/wrangler.toml
 existing_primitives:
-  - agents/src/index.ts: Hono router + every-turn entry (BOT_PERSONA, WORKSPACE_SLUG, readSoulSuffix) — C2/C5/C6/C8 extend it, never rewrite
-  - agents/src/prompt.ts: readSoulSuffix(db, slug) — C4 extracts this into @oneie/sdk; C5 imports it back
-  - one.ie/web/src/pages/api/chat.ts: web runtime + tool defs + buildCompanyContextSuffix — C6 moves its tools out, C7 guts it to a proxy
-  - agents/src/personas.ts: hardcoded persona map (BOT_PERSONA key) — C8 deletes after wiring parse()
-  - packages/sdk/src/compile.ts: parseAgentMd() (re-exported `as parse`) reads agent .md frontmatter into typed struct — C8 calls it at channels startup
-  - agents/src/channels.ts: Telegram/Discord normalize+send, imported only by index.ts — C2 renames to ingress.ts
+  - channels/src/index.ts: Hono /message handler — already returns createAgentUIStreamResponse (UIMessage SSE), the EXACT wire protocol web's useChat expects → proxy is a transparent passthrough. C6 enriches body; C9 is what web fetches.
+  - channels/src/agents/builder.ts: makeAgent(env,persona,group,userId) + CallOptions{group,channel,userId} + prepareCall. C6 adds viewer/surface to CallOptions; C7 adds tool layers gated on channel='web'/viewer.owner.
+  - channels/src/aitools.ts: buildTools — substrate layer already includes emit_card + draft_social_post; C7 REUSES these, only adds the missing web/workspace formatters + R2 tools.
+  - channels/src/skill-tools.ts + composio.ts: existing per-user skill + composio fallback layers — C7 mirrors this layering shape for web/workspace.
+  - one.ie/web/src/pages/api/chat.ts: 1226 lines = request-gates + agent turn + ~15 tools. C7 moves tool LOGIC to channels; C9 keeps the gates and deletes the turn.
+  - one.ie/web/src/lib/{compile,eval/*,skill/*,agent-md,agents,persona-prompts}: web libs the chat.ts tools import. C7 ports the small pure ones (compile, agent-md parse) into channels; R2-reading tools use channels' CONTENT binding (bound in C5).
 show: false
 escape:
-  condition: "C5 W4 fails the deployed HTTP parity check twice (web and channels return different agent identity for same slug)"
-  action: "halt; slug is not threading from body → soul lookup. Trace body.slug → loadContext → readWorkspaceSoul. (NOTE: the data prefix `claw:` is intentionally KEPT literal per C5 W2 — do not chase a prefix migration; that is not the failure mode.)"
+  condition: "C9 W4: deployed /api/chat does NOT stream a channels-proxied response, OR the outcome grep still finds streamText|tool(|makeAgent in chat.ts after the gut"
+  action: "halt; the agent turn did not fully leave web. Confirm C7 moved every tool layer and C8 resolves the persona, so chat.ts has nothing left to do but gate+fetch. Do NOT reintroduce a tool in web to 'patch' a gap — add the missing layer in channels."
 context_triggers:
-  - pattern: "claw:|WORKSPACE_SLUG"
-    inject: "plans/clean.md § The Migration (Data note) — REMINDER: `claw:` data prefix is kept literal (C5 W2 decision); do not rename it"
-  - pattern: "CONTENT|r2_buckets|wrangler"
-    inject: "plans/clean.md § The Fix: One Runtime"
+  - pattern: "viewer|surface|actorId|CallOptions|owner"
+    inject: "C6 contract = identity + location ONLY (actorId, slug, agentId, surface, channel). channels DERIVES owner/role from ONE_DB — never trust a boolean web sends, never read Astro locals in channels. Missing membership → owner=false (safe default)."
+  - pattern: "patch_agent|patch_theme|delegate|field-service|WEB_URL|fetch.*one\\.ie"
+    inject: "THE RULE: channels NEVER fetches web. patch_agent→D1 agents.frontmatter, patch_theme→D1 themes.tokens, delegate→gateway signal(), field-service→D1 field_service_bookings — all native to channels' own bindings. Cross-worker side effects (roster:changed cache-bust, DO broadcast) → emit signal(), not HTTP. If you typed WEB_URL, you took the wrong path."
+  - pattern: "personas.ts|parseAgentMd|buildPersonaSystem|one\\.md|concierge"
+    inject: "C8: personas.ts is KEPT as the typed fallback (one/concierge have NO .md). Per-slug agents load from CONTENT R2. Resolution: R2 .md → personas[BOT_PERSONA] → personas.one. Deleting personas.ts loses the web default."
+  - pattern: "eval|skill-import|runner|grader|heavy"
+    inject: "Don't bloat channels by porting heavy web libs (lib/eval/*). Anything beyond a pure function or a single D1/R2 write → emit signal('skill:eval',…)/ask() on the substrate receiver namespace. The tool surface is a THIN skin over the substrate."
 ---
 
 # Clean Architecture — One Agent Runtime
 
-> Architecture reference: **`plans/clean.md`**. This todo executes its 7-step migration plus the personas-from-markdown endpoint as 8 `/do` cycles.
+> Architecture reference: **`plans/clean.md`**. C1-C5 (rename, dead-code, soul, multi-tenant) shipped. The back half was **re-planned 2026-05-29** against the real `chat.ts` (1226 lines of gates + agent-turn + ~15 tools): C6-C9 below define one rich **proxy contract**, dissolve tools into **substrate calls**, keep **request-gates in web**, and **unify** (not delete) personas. The seam: web gates → proxies; channels runs the whole turn.
+
+---
+
+## ▶ START HERE (cold `/do` — read this whole block before W1)
+
+**Done + committed** — C1-C5. Do not redo. Commits: `channels eb8c593` · `packages 9ccc080` · `root 663f6a7`. **Begin at Batch 4 (C6).**
+
+**The runtime topology you cannot cheaply rediscover — take these as given:**
+
+1. **`channels/` is a STANDALONE nested git repo** (remote `github.com/one-ie/agents`, gitignored at monorepo root like `packages/`, `api/`). It deploys on its own. → It has **no `@oneie/sdk` dependency and no workspace link** — do NOT add one. Port small pure functions inline instead. Verify a tool with `cd channels && bunx tsc --noEmit` (NOT `bun run verify` — no such script). Tests run on **`bun test`** (native, zero-dep) — NOT vitest; channels has no vitest.
+2. **channels already speaks the web client's wire protocol** — `/message` returns `createAgentUIStreamResponse` (UIMessage SSE). The web proxy (C9) is a **transparent passthrough**, not a translation.
+3. **channels bindings (post-C5):** `DB` (d1 claw), `ONE_DB` (d1 one-owners), `KV`, `CONTENT` (r2 one-content). It reaches the substrate via `GATEWAY_URL` (`src/substrate.ts`: signal/mark/warn/highways/recall) and can fan out via `src/orchestrate.ts`.
+4. **`claw:` data prefix stays literal** (decoupled from the worker name; not a migration). **`personas.ts` stays** (the `one`/`concierge` defaults have no `.md`).
+
+**THE ONE PRINCIPLE that makes this elegant — enforce it in every cycle:**
+> **`channels` never fetches `web`.** Every agent tool resolves against the substrate `channels` already owns — D1, CONTENT R2, or a `signal()`/`ask()` on the receiver namespace. There is **no `WEB_URL`, no callback, no web→channels→web cycle.** The tool surface is a thin skin over the substrate. If a cycle has you adding an HTTP call from channels back to one.ie, you took the wrong path — it's a D1/R2 write or a signal.
+
+**The route→primitive map (recon-verified 2026-05-29 — pin for C7 W2, don't re-derive):**
+
+| chat.ts tool | line | dissolves to (channels-native) |
+|---|---|---|
+| `patch_agent` | ~573 | D1 `agents.frontmatter` UPDATE (`one.ie/web/src/lib/db/agents.ts:patchAgentFrontmatter`); `roster:changed` → `signal()`, not the DO broadcast |
+| `patch_theme` | ~645 | D1 `themes.tokens` UPDATE (`lib/db/themes.ts:patchTheme`) |
+| `delegate_to` | ~599 | `signal()` via `GATEWAY_URL` (it already POSTs `/api/signal`; same receiver grammar) — consider `orchestrate.ts` |
+| `field-service` book | ~729 | D1 `field_service_bookings` INSERT (`api/field-service/[slug]/book.ts`) |
+| `emit_card/chips/section/boq/event` | 668/711/721/763/821 | pure output envelopes; **`emit_card` already exists in `channels/src/aitools.ts` — reuse** |
+| `skill/compile/import_skill` | 450/554/499 | R2 read/parse via `CONTENT` + port the tiny pure `lib/compile` + agent-md parse |
+| `draft_social_post` | ~911 | D1 write — **already exists in `channels/src/aitools.ts` — reuse** |
+| `eval` | ~391 | heavy (`lib/eval/runner+grader+aggregate`) → `signal('skill:eval')`/`ask()`, do NOT port the libs |
+| `action` tools | ~896 | surface-scoped substrate ops; gate on `viewer.owner` + `surface` |
+
+**Decisions already pinned (C6-C9 W2 — do not re-litigate):** standalone (no sdk dep) · no WEB_URL/callbacks · keep personas.ts · `claw:` literal · `bun test` · outcome revised (no `≤40 lines`) · channels derives `owner` from ONE_DB (identity in, capability derived) · heavy/cross-worker → `signal()`.
+
+---
 
 ## Goal, outcome, deliverables, UX
 
@@ -93,15 +134,14 @@ There is exactly one LLM runtime (`channels/`); `one.ie/web` is a UI shell that 
 ### Outcome (the kill-switch)
 
 ```bash
-# Pinned 2026-05-28. Clause 1 greps streamText|tool( — the primitives chat.ts ACTUALLY uses.
-# (Do NOT grep ToolLoopAgent|makeAgent in web: it returns 0 today, before any work — those names
-#  live channels-side, so that clause never discriminates "done" from "not started".)
-! grep -qE 'streamText|tool\(' one.ie/web/src/pages/api/chat.ts \
-  && test "$(wc -l < one.ie/web/src/pages/api/chat.ts)" -le 40 \
+# REVISED 2026-05-29 (elegance pass). The agent turn is gone; the request-gates stay.
+# Discriminator: no streamText|tool(|makeAgent in chat.ts AND a CHANNELS_URL fetch exists.
+# (The old `≤40 lines` clause was wrong — billing/x402/CRO gates legitimately remain ~80-120 lines.)
+! grep -qE 'streamText|tool\(|makeAgent|ToolLoopAgent' one.ie/web/src/pages/api/chat.ts \
   && grep -q CHANNELS_URL one.ie/web/src/pages/api/chat.ts
 ```
 
-**What passing proves:** No LLM/tool/soul logic remains in `one.ie/web`; `chat.ts` is a thin auth+proxy to `channels`.
+**What passing proves:** No LLM/tool/soul logic remains in `one.ie/web`; `chat.ts` is auth+billing+CRO gates wrapping a one-directional proxy to `channels`.
 
 **Contract:** runs after every batch's W4. Plan does not close until it exits 0. The moment it passes, remaining cycles enter justify-or-drop.
 
@@ -114,9 +154,10 @@ There is exactly one LLM runtime (`channels/`); `one.ie/web` is a UI shell that 
 | delete | `channels/src/adapters/` | 602 lines of dead adapters gone | C3 |
 | file | `packages/sdk/src/soul.ts` | `readWorkspaceSoul()` — one soul primitive | C4 |
 | feature | channels multi-tenant | `slug` from body, `WORKSPACE_SLUG` fallback, `CONTENT` R2 | C5 |
-| file | `channels/src/tools/{web,workspace}.ts` | web/owner tools live in channels, gated `channel='web'` | C6 |
-| api | `one.ie/web/src/pages/api/chat.ts` | ~20-line auth+proxy to channels `/message` | C7 |
-| delete | `channels/src/personas.ts` | personas loaded from `one.ie/agents/*.md` at startup | C8 |
+| feature | proxy contract (`CallOptions` + `/message`) | channels gets identity (`actorId`)+location, derives capability | C6 |
+| file | `channels/src/tools/{web,workspace}.ts` | every web tool runs in channels (D1/R2/signal — no web fetch), gated `channel='web'`+owner | C7 |
+| feature | per-slug agent `.md` from `CONTENT` R2 | workspace agents drive the turn; `personas.ts` kept as fallback | C8 |
+| api | `one.ie/web/src/pages/api/chat.ts` | gates (auth/billing/x402/CRO) wrapping a one-directional proxy to channels | C9 |
 
 ### User experience: before → after
 
@@ -156,41 +197,47 @@ Anti-patterns rejected on sight:
 
 ### Cycle-level DAG
 
+**Done (C1-C5):**
 ```mermaid
 graph TD
-  C1[C1 rename agents/→channels/] -->|path of every file changes| C2[C2 channels.ts→ingress.ts]
-  C1 -->|path changes| C3[C3 delete adapters/]
-  C1 -->|imports soul into renamed dir| C5[C5 multi-tenant]
-  C4[C4 sdk/soul.ts] -->|C5 imports readWorkspaceSoul| C5
-  C5 -->|makeAgent channel guard| C6[C6 move web tools]
-  C6 -->|tools out of chat.ts first| C7[C7 chat.ts → proxy]
-  C1 -->|operates in renamed dir| C8[C8 personas from .md]
+  C1[C1 rename → channels/] --> C2[C2 ingress.ts]
+  C1 --> C3[C3 delete adapters/]
+  C1 --> C5[C5 multi-tenant]
+  C4[C4 sdk/soul.ts] --> C5
 ```
 
-C1 and C4 have no edge → batch 1 parallel. C2·C3 independent siblings under C1 → batch 2. C7·C8 touch disjoint files (`chat.ts` vs `context.ts`/`personas.ts`) → batch 5 parallel.
+**Re-planned back half (C6-C9):**
+```mermaid
+graph TD
+  C6[C6 proxy contract<br/>actorId→CallOptions, derive owner] --> C7[C7 tools = substrate skin<br/>web · workspace]
+  C6 --> C8[C8 persona R2 loader<br/>personas.ts fallback kept]
+  C7 --> C9[C9 gut chat.ts → gates+proxy]
+  C8 --> C9
+```
 
-**Arrow justifications:**
-- `C1 → C2/C3/C5/C8` — C1 renames `agents/` to `channels/`; every downstream edit targets a path that does not exist until C1 lands on disk.
-- `C4 → C5` — C5's `loadContext` imports `readWorkspaceSoul` from `@oneie/sdk`, which C4 creates.
-- `C5 → C6` — C6 wires web/workspace tools into the `makeAgent` `channel='web'` guard that C5 introduces.
-- `C6 → C7` — C7 deletes `chat.ts`; the tool defs must be moved into `channels` (C6) before they can be deleted from `chat.ts`.
+C6 is the keystone — the contract every later cycle reads. C7 (tool layers) and C8 (persona loader) are disjoint files under that contract → **batch 5 parallel**. C9 composes both.
+
+**Arrow justifications (the only valid kind — file one writes, next reads):**
+- `C6 → C7` — C7's tool layers read `viewer`/`surface` from the `CallOptions` that C6 adds to `makeAgent.prepareCall`.
+- `C6 → C8` — C8's persona resolver reads the `agentId`/`slug` that C6 threads into the `/message` body + context.
+- `C7 → C9` — C9 deletes the tool defs from `chat.ts`; they must exist as layers in channels (C7) first.
+- `C8 → C9` — C9's proxied turn relies on channels resolving the persona (C8); otherwise web still owns persona selection.
+- **No `C7 → C8` edge** — different files (`tools/*.ts` vs `context.ts`/persona loader); they only share C6's contract, which is a read, not a write-dependency.
 
 ### Batches
 
 | Batch | Cycles | Parallel work |
 |-------|--------|---------------|
-| 0 | shared | W0 baseline + read of 5 `shared_recon:` files |
-| 1 | C1, C4 | dir rename + soul.ts extraction (disjoint trees) |
-| 2 | C2, C3 | ingress rename + adapters delete |
-| 3 | C5 | multi-tenant |
-| 4 | C6 | move web tools |
-| 5 | C7, C8 | proxy + personas loader (disjoint files) |
+| 1-3 | C1-C5 | **DONE** — committed (channels eb8c593 · packages 9ccc080 · root 663f6a7) |
+| 4 | C6 | the proxy contract (keystone) — viewer/surface/agentId through CallOptions |
+| 5 | C7, C8 | tool layers ∥ persona R2 loader — disjoint files, one spawn message |
+| 6 | C9 | gut chat.ts to gates+proxy — composes C7+C8; closes the outcome (deploy-gated) |
 
 ---
 
 ## Status
 
-> **Session note (2026-05-28):** Plan refined + recon verified against live code; no code edited yet (runtime is still `agents/`). Pre-pinned this session: plan `outcome:` command, C5 data-prefix decision (keep `claw:` literal), C5 CONTENT-R2 (NOT bound → bind in W3), C8 symbol name (`parseAgentMd`). Next session starts at Batch 1.
+> **Session note (2026-05-29):** C1-C5 SHIPPED + committed (channels eb8c593 · packages 9ccc080 · root 663f6a7). Back half **RE-PLANNED** after recon exposed the original C6/C7/C8 as under-scoped: `chat.ts` is 1226 lines = request-gates + agent-turn + ~15 tools across 3 dependency classes; channels already emits the exact UIMessage-SSE protocol web expects (proxy is transparent). New C6-C9: contract → layers → unify → gut. Outcome revised (dropped the false ≤40-line clause). Next session starts at Batch 4 (C6, the keystone). Deploys for C5 + C9 remain deferred to the user.
 
 ```
 Batch 0 (shared)
@@ -217,22 +264,31 @@ Batch 3
     - [x] W1 · [x] W2 · [x] W3 · [~] W4 (tsc 0, 6/6 bun tests pass; deploy parity check pending user)
     - DECISION: channels stays standalone — NO @oneie/sdk dep. Kept readSoulSuffix (identical to sdk's readWorkspaceSoul). slug threaded via resolveWorkspaceSlug (body > WORKSPACE_SLUG > 'claw') into loadContext + /message. CONTENT R2 (one-content) bound. claw: data prefix kept literal per W2.
 
-Batch 4
-  - [ ] C6 — move web tools into channels              state: BLOCKED-ON-RESCOPE
-    - REALITY GAP: chat.ts is 1226 lines / ~15 web-coupled tools (eval, skill, payment, import_skill,
-      compile, patch_agent, delegate_to, patch_theme, emit_*, draft_social, composio, action tools) +
-      billing gates + CRO personalisation + rate-limit + x402, all importing web libs (lib/compile,
-      lib/eval/*, lib/billing, lib/cro/*) and Astro locals. clean.md assumed "a handful of emit tools."
-      Faithful move = port those libs into channels OR a shared pkg. Needs re-plan.
+Batch 4  (re-planned — the keystone)
+  - [ ] C6 — proxy contract                            state: READY  ← START HERE
+    - [ ] W1 · W2 · W3 · W4
+    - Enrich /message body + CallOptions with viewer{id,role,owner} + surface + agentId; thread through
+      makeAgent.prepareCall. No tool moves, no behavior change — just the data spine later cycles read.
 
-Batch 5
-  - [ ] C7 — chat.ts → proxy                           state: BLOCKED-ON-C6 (and the same chat.ts reality gap)
-    - Note: plan says "keep auth + x402 + CRO in web at request level" — but billing/CRO/skill/eval
-      currently live INSIDE the tool loop in chat.ts, not at request level. Re-plan what truly stays.
-  - [ ] C8 — personas from .md                         state: BLOCKED-ON-RESCOPE
-    - REALITY GAP: (1) one.ie/agents/ is a SEPARATE repo from channels/ — no build-time bundling;
-      would need R2 runtime fetch (different design). (2) one.md + concierge.md DON'T EXIST in
-      one.ie/agents/ — loading only from .md loses personas.one (the /message web default).
+Batch 5  (re-planned — parallel, disjoint files)
+  - [ ] C7 — tools = a thin skin over the substrate    state: blocked-on-C6
+    - [ ] W1 · W2 · W3 · W4
+    - TWO layers: tools/web.ts (emit_* — REUSE existing emit_card) + tools/workspace.ts (patch_agent→D1
+      agents, patch_theme→D1 themes, field-service→D1 insert, delegate→gateway signal(), skill/compile/
+      import→CONTENT R2 + ported pure libs, eval→signal('skill:eval'), draft_social→REUSE). Wire into
+      makeAgent behind channel='web' + viewer.owner. NO WEB_URL — channels never fetches web (no-cycle gate).
+  - [ ] C8 — persona R2 loader (unify, don't delete)   state: blocked-on-C6
+    - [ ] W1 · W2 · W3 · W4
+    - Move findAgent/parseAgentMd/buildPersonaSystem into channels; per-slug agent .md from CONTENT R2;
+      personas.ts KEPT as typed worker-default fallback (one/concierge have no .md → no data loss).
+
+Batch 6  (re-planned — closes the outcome)
+  - [ ] C9 — gut chat.ts → gates+proxy                 state: blocked-on-C7,C8 · deploy-gated
+    - [ ] W1 · W2 · W3 · W4
+    - Keep request-gates (auth, billing pool, rate-limit, x402 receipt, CRO variant+cookie); replace the
+      entire LLM/tool/soul block with fetch(CHANNELS_URL/message, {slug,group,messages,channel:'web',
+      actorId,agentId,surface}) + SSE passthrough. Add CHANNELS_URL to web wrangler (NO WEB_URL — one-
+      directional). Deploy + parity check = user.
 
 Plan close
   - [ ] Plan outcome command exits 0
@@ -452,7 +508,7 @@ demo:
    - [ ] `@oneie/sdk` — confirm `readWorkspaceSoul` exported (C4 output)
 
 ### W2 — Decide  [Opus · high]
-- [x] **Plan `outcome:` command** — pinned in frontmatter 2026-05-28 (`! grep streamText|tool( chat.ts && ≤40 lines && CHANNELS_URL`).
+- [x] **Plan `outcome:` command** — see frontmatter (REVISED 2026-05-29: `! grep streamText|tool(|makeAgent chat.ts && grep CHANNELS_URL`; the old `≤40 lines` clause was dropped).
 - [ ] **slug resolution order** — body.slug > WORKSPACE_SLUG env > 'claw'. Apply at ALL four `?? 'claw'` sites or centralize in `loadContext`/`context.ts`?
 - [x] **Data prefix: KEEP `claw:` literal — DECIDED 2026-05-28.** The `claw:${group}` data namespace (9 sites: middleware.ts, tools.ts, substrate.ts, index.ts×4, aitools.ts) is the *data* prefix and is decoupled from the *directory* name. The goal is one runtime serving many slugs — NOT renaming the data namespace. So C5 does NOT rename the prefix and does NOT migrate D1/TypeDB rows. C5 W3 = read slug from body only. (This makes the escape condition's migration worry moot — softened below.)
 - [ ] **CONTENT R2** — NOT bound (verified); add the `[[r2_buckets]]` binding to wrangler.toml in W3. (clean.md's "CONTENT missing" claim is correct.)
@@ -486,149 +542,212 @@ demo:
 
 ---
 
-## C6 — move web tools into channels  [tier: complex · batch: 4]
+## C6 — the proxy contract  [tier: complex · batch: 4 · KEYSTONE]
 
-**Goal delta:** web/owner tool definitions live in `channels`, gated by `channel='web'` — chat.ts no longer needs them.
+**Goal delta:** `channels` accepts everything an agent turn needs as a JSON payload — `viewer{id,role,owner}`, `surface`, `agentId`, `channel` — so the tool layers (C7) and persona loader (C8) can replace what `chat.ts` reads from Astro `locals`. **No tool moves, no behavior change** — this is the data spine the back half reads.
 
-**Deliverable:** `channels/src/tools/web.ts` (emit_card/section/chips, cro) + `channels/src/tools/workspace.ts` (compile/patch_agent/billing/eval), wired into `makeAgent` behind the channel guard.
+**Why first:** the original plan's hidden blocker was that chat.ts's tools read Astro `locals` (session, workspaceContext, viewer). channels has no `locals`. Until the contract carries that data, no tool can move. Build the spine once; C7/C8/C9 hang off it.
 
-**UX delta:** internal-only — but unblocks C7 (the user-visible proxy).
+**Deliverable:** `/message` body schema extended; `CallOptions` gains `viewer`/`surface`; `makeAgent.prepareCall` threads them into `experimental_context`; `index.ts` parses+forwards them. The substrate `ctx()` helper exposes them to tool `execute`.
 
-**Cycle outcome:** `bun run verify` green AND a `channel='web'` agent turn exposes emit_card; a non-web turn does not.
+**UX delta:** internal-only — justified: it's the precondition for every later cycle.
+
+**Cycle outcome:** `bunx tsc --noEmit` clean AND a turn invoked with `{channel:'web', viewer:{owner:true}}` exposes those fields to a tool's `execute` (asserted in test); absent → safe defaults (`channel:'api'`, `viewer:undefined`).
 
 ```yaml
 demo:
-  command: "bun vitest run channels/test/web-tools.test.ts"
-  asserts: "makeAgent includes web tools only when channel='web' (+ workspace tools only for authed owner)"
-  budget:  "<2s wall · <150 LOC test"
+  command: "bun test channels/test/contract.test.ts"
+  asserts: "callOptionsSchema accepts viewer+surface; prepareCall forwards them; missing → defaults, never throws"
+  budget:  "<2s wall · <100 LOC test"
+```
+
+### W1 — Recon  [inline — files already mapped this session]
+- [ ] `channels/src/agents/builder.ts` — `callOptionsSchema`, `CallOptions`, `prepareCall` (where `experimental_context` is set)
+- [ ] `channels/src/aitools.ts` — `ctx(options)` helper (line ~17) that tools call to read CallOptions
+- [ ] `channels/src/types.ts` — `CallOptions` type
+- [ ] `channels/src/index.ts` `/message` (now ~line 265) — body parse; `createAgentUIStreamResponse({ options })`
+
+### W2 — Decide  [Opus · high]
+- [ ] **Contract shape (identity + location ONLY)** — body carries `{ slug, group, messages, channel, actorId?, agentId?, surface? }`. channel defaults `'api'`. NO `owner`/`role` on the wire. Single source: `callOptionsSchema` + `CallOptions`.
+- [ ] **Capability is DERIVED, not trusted** — channels resolves `viewer = { actorId, role, owner }` from `(actorId, slug)` against `ONE_DB` (the same workspace_settings/membership source web uses). Web proves identity (it ran the auth ceremony); channels owns authorization. Missing membership / no actorId → `owner=false` (safe default — never over-grants). Add a tiny `resolveViewer(env, actorId, slug)` (KV-cached) — this is the authz seam.
+- [ ] **No Astro leakage** — the contract carries *data*, not Astro objects. channels must never import from `one.ie/web`.
+
+### W3 — Edit  [Sonnet · parallel]
+**W3a:**
+- [ ] `channels/src/agents/builder.ts` — extend `callOptionsSchema` (`viewer`, `surface`) + `prepareCall` forwards them in `experimental_context`
+- [ ] `channels/src/types.ts` — extend `CallOptions` (`viewer`, `surface`)
+- [ ] `channels/src/context.ts` (or index.ts) — `resolveViewer(env, actorId, slug)` against ONE_DB, KV-cached
+- [ ] `channels/src/index.ts` — `/message` parses `actorId`/`agentId`/`surface`; calls `resolveViewer`; passes derived `viewer` into `options`
+- [ ] `channels/test/contract.test.ts` — demo (new): resolveViewer derives owner from a fake ONE_DB; absent → owner=false
+**W3b:** *(empty — single-file additions, no same-file collision)*
+
+### W4 — Verify  [inline composite]
+- [ ] `bunx tsc --noEmit` delta ≤ 0
+- [ ] demo test exits 0 (fields forwarded; defaults safe)
+- [ ] goal-fit ≥ 0.50 · composite ≥ 0.65
+
+---
+
+## C7 — tools = a thin skin over the substrate  [tier: complex · batch: 5 · ∥ C8]
+
+**Goal delta:** every chat.ts agent-tool exists in `channels`, resolving against the substrate channels already owns — D1, CONTENT R2, or a `signal()`/`ask()`. **No web fetch, no `WEB_URL`, no cycle.** chat.ts can then shed it all (C9).
+
+**TWO layers (the third — "web-callbacks" — was deleted; those tools dissolve into substrate writes):**
+
+| Layer file | Tools | Gate | Resolves via (channels-native) |
+|---|---|---|---|
+| `tools/web.ts` | emit_card·section·chips·boq·event | `channel='web'` | pure output envelopes — REUSE existing `emit_card`; rest are identity fns (no deps) |
+| `tools/workspace.ts` | patch_agent·patch_theme·delegate·field-service·skill·compile·import_skill·draft_social·action | `channel='web'` + `viewer.owner` | **D1 directly** (patch_agent→`agents.frontmatter`, patch_theme→`themes.tokens`, field-service→`field_service_bookings`, draft_social→REUSE existing); **CONTENT R2** (skill/import + ported pure `compile`/agent-md parse); **gateway `signal()`** (delegate — reuse `substrate.ts`/`orchestrate.ts`); **`signal('skill:eval')`** for heavy `eval` (do NOT port `lib/eval/*`) |
+
+**The rule (enforced):** if a tool's execute would `fetch` one.ie, you took the wrong path — it's a D1/R2 write or a `signal()`. Cross-worker side effects (e.g. `roster:changed` cache-bust) = emit a signal, not an HTTP call. See the route→primitive map in ▶ START HERE.
+
+**Reuse contract:** `emit_card` + `draft_social_post` already exist in `channels/src/aitools.ts` — reference, don't recreate. Net-new = the missing emit_* envelopes + the D1 writers + R2 readers + ported pure `compile`/agent-md.
+
+**Deliverable:** the two files + `makeAgent` wiring (`buildWebTools` when `channel='web'`, `buildWorkspaceTools` when `+ viewer.owner`), mirroring the existing skill/composio layer merge.
+
+**Cycle outcome:** `bunx tsc --noEmit` clean AND a `channel='web' owner=true` turn exposes workspace tools; `channel='telegram'` → substrate-only; **`! grep -rn "WEB_URL\|fetch(.*one\.ie" channels/src/tools/`** (zero web callbacks).
+
+```yaml
+demo:
+  command: "bun test channels/test/tool-layers.test.ts"
+  asserts: "buildWebTools/buildWorkspaceTools return right sets per channel+owner; workspace tools write D1/R2 or signal — never fetch web"
+  budget:  "<2s wall · <180 LOC test"
+```
+
+### W1 — Recon  [Haiku · parallel — route→primitive map already in ▶ START HERE]
+1. **Existing-code recon**
+   - [ ] `one.ie/web/src/pages/api/chat.ts` — copy each tool's `inputSchema` (lines in the START HERE map). For the dissolving four, copy the SHAPE, not the fetch — the persistence target is in the map.
+   - [ ] `one.ie/web/src/lib/db/{agents,themes}.ts` — `patchAgentFrontmatter`/`patchTheme` D1 SQL to mirror; `api/field-service/[slug]/book.ts` — the INSERT columns
+   - [ ] `channels/src/{aitools,substrate,orchestrate}.ts` — reuse `emit_card`/`draft_social_post`; `signal()` for delegate; the `ctx()` reader (exposes viewer/surface after C6)
+2. **Primitive-inventory recon**
+   - [ ] `one.ie/web/src/lib/{compile,agent-md}` — small pure libs to port (no Astro dep)
+   - [ ] confirm `lib/eval/*` is multi-file/heavy → it becomes `signal('skill:eval')`, NOT a port
+
+### W2 — Decide  [Opus · high — most verdicts pre-pinned in START HERE map]
+- [ ] **Resolution per tool (confirm against the map)** — pure→inline; single D1/R2 write→channels binding directly; heavy/multi-lib or cross-worker→`signal()`/`ask()`. No tool may fetch web.
+- [ ] **Layer assembly** — `buildWebTools(env, opts)` + `buildWorkspaceTools(env, opts)` in `builder.ts`, merged when `opts.channel==='web'` / `+ opts.viewer?.owner`. Mirror skill/composio merge.
+- [ ] **allowlist** — carry chat.ts's `ownerAgentToolsAllowlist` (agent-frontmatter tool filter); reads from C8's resolved persona.
+- [ ] **Compose-or-construct** — REUSE emit_card/draft_social. New code is writers/envelopes, not re-implementations.
+
+### W3 — Edit  [Sonnet · parallel]
+**W3a:** *(new files — no collision)*
+- [ ] `channels/src/tools/web.ts` — emit_* envelopes (reuse emit_card)
+- [ ] `channels/src/tools/workspace.ts` — D1 writers (patch_agent/patch_theme/field-service) + R2 (skill/compile/import) + `signal()` (delegate, eval) + reuse draft_social
+- [ ] `channels/src/lib/compile.ts` (+ agent-md parse) — ported pure libs
+- [ ] `channels/test/tool-layers.test.ts` — demo (new)
+**W3b:** *(same-file — serial)*
+- [ ] `channels/src/agents/builder.ts` — `buildWebTools` + `buildWorkspaceTools`, merged behind the guards
+
+### W4 — Verify  [Haiku×5 · complex]
+- [ ] `bunx tsc --noEmit` delta ≤ 0
+- [ ] demo exits 0 (right tools per channel+owner)
+- [ ] **no-cycle gate** — `! grep -rn "WEB_URL\|fetch(\`?https?://[^\`]*one\.ie" channels/src/tools/` returns nothing
+- [ ] **reuse audit** — `emit_card`/`draft_social_post` not duplicated; dissolving tools write substrate, not HTTP
+- [ ] goal-fit ≥ 0.50 · composite ≥ 0.65 · no adversarial > 0.5 (owner-gated tools must not leak to non-owner turns)
+
+---
+
+## C8 — persona R2 loader (unify, don't delete)  [tier: complex · batch: 5 · ∥ C7]
+
+**Goal delta:** `channels` resolves a per-slug agent from its `.md` in `CONTENT` R2 (the web `findAgent`/`parseAgentMd`/`buildPersonaSystem` path), so a workspace's own agents drive the turn. `personas.ts` is **kept** as the typed worker-default fallback.
+
+**Why not delete personas.ts:** `one` (the `/message` web default) and `concierge` have **no `.md`** in `one.ie/agents/`. Deleting personas.ts would lose the default agent. Reality-checked 2026-05-28. The elegant move is *unify the lookup*, not *delete the fallback*: per-slug `.md` (R2) → `personas[BOT_PERSONA]` → `personas.one`.
+
+**Deliverable:** `channels/src/context.ts` (or extend `index.ts`) gains `resolvePersona(env, { slug, agentId, botPersona })` → reads `${slug}/agents/${agentId}.md` from `CONTENT` R2, `parseAgentMd` → `Persona`; falls back to `personas[...]` then `personas.one`. `parseAgentMd` + `buildPersonaSystem` ported into channels (small, no Astro dep).
+
+**UX delta:** a workspace editing its agent `.md` changes its agent's behavior on every surface — without a code change.
+
+**Cycle outcome:** `bunx tsc --noEmit` clean AND `resolvePersona` returns a parsed-`.md` persona when R2 has one, and `personas.one` when it doesn't (fallback proven, no crash).
+
+```yaml
+demo:
+  command: "bun test channels/test/persona-resolve.test.ts"
+  asserts: "resolvePersona reads agent .md from a fake CONTENT R2 → Persona; missing slug/agent → personas.one fallback"
+  budget:  "<2s wall · <140 LOC test"
 ```
 
 ### W1 — Recon  [Haiku · parallel]
 1. **Existing-code recon**
-   - [ ] `one.ie/web/src/pages/api/chat.ts` — locate every tool def (emit_card, emit_section, emit_chips, cro, compile, patch_agent, billing, eval); note deps (imports, env, auth checks)
-   - [ ] `channels/src/agents/` (makeAgent / ToolLoopAgent builder) — where tools are assembled, how layering works today
-   - [ ] `channels/src/tools.ts`, `substrate.ts`, `skill-tools.ts` — existing tool-layering pattern to follow
+   - [ ] `one.ie/web/src/lib/{agents,agent-md,persona-prompts}` — `findAgent`, `parseAgentMd`, `buildPersonaSystem`, `isPersonaId` — signatures + what they read (R2? D1? frontmatter shape)
+   - [ ] `channels/src/personas.ts` — `Persona` type + the 6 defaults (the fallback set)
+   - [ ] `channels/src/index.ts` — persona resolution sites (line ~62 loadContext, ~319 /message)
 2. **Primitive-inventory recon**
-   - [ ] confirm substrate tools are already a layered set → mirror that shape for web/workspace
+   - [ ] confirm `CONTENT` R2 layout for agents: `${slug}/agents/${name}.md`? (cross-check how web writes them)
 
 ### W2 — Decide  [Opus · high]
-- [ ] **channel + auth signal** — how does `makeAgent` learn `channel='web'` and "authenticated owner"? (body field, header, context object) — decide the contract.
-- [ ] **tool deps that don't belong in channels** — any chat.ts tool that reaches into Astro/session? Decide how it gets its data via the request payload instead.
-- [ ] **Compose-or-construct** — `tools/web.ts` + `tools/workspace.ts` are new files but are MOVES (cut from chat.ts), not new behavior. Record LOC budget = roughly the cut size.
+- [ ] **Resolution order** — `${slug}/agents/${agentId}.md` (R2) → `personas[botPersona]` → `personas.one`. Record it; this is the contract C9's proxy relies on.
+- [ ] **Port surface** — copy `parseAgentMd` + `buildPersonaSystem` into `channels/src/lib/agent-md.ts` (pure, no Astro). Do NOT take an `@oneie/sdk` dep (standalone decision, C5). Note frontmatter → `Persona` field mapping + gaps.
+- [ ] **Keep personas.ts** — explicitly: it stays as the fallback module. `Persona` type stays its home (or moves to types.ts — decide, but don't delete the data).
+- [ ] **Cache** — R2 read per turn is slow; cache parsed persona in KV keyed `persona:${slug}:${agentId}` (TTL 300, like loadContext).
 
 ### W3 — Edit  [Sonnet · parallel]
 **W3a:**
-- [ ] `channels/src/tools/web.ts` — emit_* + cro (moved)
-- [ ] `channels/src/tools/workspace.ts` — compile/patch_agent/billing/eval (moved)
-- [ ] `channels/test/web-tools.test.ts` — demo (new)
+- [ ] `channels/src/lib/agent-md.ts` — ported `parseAgentMd` + `buildPersonaSystem`
+- [ ] `channels/src/context.ts` — `resolvePersona(env, {slug, agentId, botPersona})` with R2→fallback chain + KV cache
+- [ ] `channels/test/persona-resolve.test.ts` — demo (new)
 **W3b:**
-- [ ] `channels/src/agents/builder.ts` (makeAgent) — wire layers behind `channel='web'` + owner guard
-- [ ] `one.ie/web/src/pages/api/chat.ts` — delete the moved tool defs (chat.ts still runs until C7)
+- [ ] `channels/src/index.ts` — `/message` + `loadContext` call `resolvePersona` (replaces the `personas[...] ?? personas.one` inline at ~319)
 
 ### W4 — Verify  [Haiku×5 · complex]
-- [ ] `bun run verify` green · `delta_tsc ≤ 0`
-- [ ] demo exits 0 (web tools present iff channel='web')
-- [ ] **reuse audit** — no tool reimplemented; LOC moved ≈ LOC deleted from chat.ts (net ~0 for the move)
-- [ ] plan outcome re-check · goal-fit ≥ 0.50 · composite ≥ 0.65
+- [ ] `bunx tsc --noEmit` delta ≤ 0
+- [ ] demo exits 0 (R2 hit → parsed; miss → personas.one)
+- [ ] `test -f channels/src/personas.ts` (fallback KEPT — inverted from the old plan)
+- [ ] goal-fit ≥ 0.50 · composite ≥ 0.65
 
 ---
 
-## C7 — `chat.ts` → proxy  [tier: complex · batch: 5]
+## C9 — gut chat.ts → gates + proxy  [tier: complex · batch: 6 · CLOSES OUTCOME · deploy-gated]
 
-**Goal delta:** every web agent turn routes through `channels`; `one.ie/web` holds zero LLM code. **This closes the plan outcome.**
+**Goal delta:** the entire LLM/tool/soul block leaves `chat.ts`; what remains is the request-gates wrapping a `fetch` to `channels`. **This closes the plan outcome.**
 
-**Deliverable:** `one.ie/web/src/pages/api/chat.ts` ~20 lines: auth → resolve `CHANNELS_URL` → fetch `/message` → stream back.
+**What STAYS in chat.ts (request-gates — NOT agent logic):** auth/viewer resolution, billing pool check (`currentBalance`/`debitPool`), rate-limit, x402 receipt verify, CRO variant pick + cookie header, idle-nudge. These are request-level and correctly live in web.
 
-**UX delta:** web and Telegram answers are now identical (same runtime).
+**What LEAVES (→ channels, already there after C7/C8):** `buildSystem`/persona, soul (`buildCompanyContextSuffix`), memory, every `tool(...)`, `streamText`, provider routing.
 
-**Cycle outcome:** plan `outcome:` exits 0 AND deployed `/api/chat` returns a streamed agent response proxied from channels.
+**Deliverable:** `chat.ts` = gates → build body `{slug, group, messages, channel:'web', actorId, agentId, surface}` (identity + location only; channels derives owner) → `fetch(env.CHANNELS_URL+'/message', {body})` → return the SSE response (passthrough — channels already emits UIMessage SSE) + CRO cookie headers. `CHANNELS_URL` added to web wrangler. **No `WEB_URL`** — the proxy is one-directional. Realistic size ~80-120 lines (gates), not 20.
 
-**Deploy-surface cycle** → W4 HTTP check mandatory.
+**UX delta:** web and Telegram answers are now identical — one runtime.
+
+**Cycle outcome:** the plan `outcome:` grep passes (no `streamText|tool(|makeAgent`, has `CHANNELS_URL`) AND deployed `/api/chat` streams a channels-proxied response.
+
+**Deploy-surface cycle** → W4 HTTP check mandatory (DEFERRED to user).
 
 ```yaml
 demo:
   command: "bun vitest run one.ie/web/test/chat-proxy.test.ts"
-  asserts: "chat.ts forwards {slug,group,messages} to CHANNELS_URL and streams the response; no tool/soul logic remains"
+  asserts: "chat.ts forwards enriched body to CHANNELS_URL, passes gates, streams response; grep finds no LLM/tool logic"
   budget:  "<2s wall · <120 LOC test"
 ```
 
 ### W1 — Recon  [Haiku · parallel]
 1. **Existing-code recon**
-   - [ ] `one.ie/web/src/pages/api/chat.ts` — what remains after C6: auth path (`requireAuth`/visitor cookie), streaming setup, x402 verification, CRO/variant selection
-   - [ ] `one.ie/web/src/lib/in/workspace-settings.ts` — `buildCompanyContextSuffix` (delete here; soul now in channels)
-   - [ ] `one.ie/web/wrangler.toml` — env var setup for `CHANNELS_URL`
+   - [ ] `one.ie/web/src/pages/api/chat.ts` — map the gate sequence precisely: auth (readCookieId/visitorHash/findAgent), billing (currentBalance/computeBurn/debitPool ~1059-1090,1178), rate-limit (rlKey), x402 (verifyReceipt), CRO (pickVariant/readVariantCookie/buildVariantCookieHeader/evaluateRules/shouldNudge). These are the KEEP-set.
+   - [ ] `one.ie/web/src/lib/in/workspace-settings.ts` — `buildCompanyContextSuffix` (soul now in channels; delete here once no importer)
+   - [ ] `one.ie/web/wrangler.toml` — where to add `CHANNELS_URL`
 2. **Primitive-inventory recon**
-   - [ ] confirm auth + streaming helpers exist to reuse in the slim proxy
+   - [ ] confirm the SSE response from channels can be returned directly (same `Content-Type`/headers the web client's `useChat` expects)
 
 ### W2 — Decide  [Opus · high]
-- [ ] **What stays in web** — auth, visitor cookie, x402 route-level verify, CRO (request-level, NOT in proxy body). Record the keep-list explicitly.
-- [ ] **streaming passthrough** — how to pipe the channels SSE/stream response back through Astro without re-buffering.
-- [ ] **delete `buildCompanyContextSuffix`** — confirm no other importer remains.
+- [ ] **Keep-list (explicit)** — the five gate families above stay; everything else goes. Write the list; W4 greps to confirm nothing agent-shaped remains.
+- [ ] **Body** — the C6 contract: `{slug, group, messages, channel:'web', actorId, agentId, surface}`. actorId = web's authenticated identity; channels derives owner. agentId = web's `findAgent` result. No owner/role boolean crosses the wire.
+- [ ] **Passthrough** — return `new Response(channelsRes.body, { headers: {...sse, ...croCookie} })` — no re-buffer. Confirm CRO cookie header is set on the proxied response.
+- [ ] **delete `buildCompanyContextSuffix`** — confirm no other web importer (it's the soul; soul lives in channels now).
 
 ### W3 — Edit  [Sonnet · parallel]
 **W3a:**
-- [ ] `one.ie/web/src/pages/api/chat.ts` — replace with auth+proxy (~20 lines)
+- [ ] `one.ie/web/src/pages/api/chat.ts` — gates + proxy (the gut)
 - [ ] `one.ie/web/wrangler.toml` — add `CHANNELS_URL`
 - [ ] `one.ie/web/test/chat-proxy.test.ts` — demo (new)
-- [ ] `plans/clean.md` — mark Steps 6–7 done
+- [ ] `plans/clean.md` — mark Steps 6-7 + Personas done
 **W3b:**
 - [ ] `one.ie/web/src/lib/in/workspace-settings.ts` — remove `buildCompanyContextSuffix` (after confirming no importer)
 
 ### W4 — Verify  [Haiku×5 · complex]
-- [ ] `bun run verify` green · `delta_tsc ≤ 0` · `delta_loc` strongly negative (~−1200 in chat.ts)
-- [ ] demo exits 0
-- [ ] **deploy + HTTP check** on `https://one.ie/api/chat` (cache-busted) returns 200/stream
-- [ ] **PLAN OUTCOME command exits 0** — record it; trigger justify-or-drop on any unstarted cycle
-- [ ] **parity proof** — curl web + channels same slug, identical agent identity; paste into close note
+- [ ] `bun run verify` (web) green · `delta_tsc ≤ 0` · `delta_loc` strongly negative (~−1000 in chat.ts)
+- [ ] demo exits 0 · **PLAN OUTCOME grep exits 0** (no streamText|tool(|makeAgent; has CHANNELS_URL)
+- [ ] **[DEFERRED — user] deploy + HTTP check** on `https://one.ie/api/chat` (cache-busted) returns 200/stream
+- [ ] **[DEFERRED — user] parity proof** — curl web + channels same slug, identical agent identity
 - [ ] goal-fit ≥ 0.80 · composite ≥ 0.65
-
----
-
-## C8 — personas from `.md`  [tier: complex · batch: 5]
-
-**Goal delta:** `channels` has no embedded persona content; personas load from `one.ie/agents/*.md` at startup — "definitions are data, not code" becomes fully true.
-
-**Deliverable:** `channels/src/personas.ts` deleted; `Persona` type moved to `types.ts`; `BOT_PERSONA` resolves to a parsed `.md` by `name:`.
-
-**UX delta:** internal-only — but a persona edit now means editing one `.md`, not TS + `.md`.
-
-**Cycle outcome:** `! test -f channels/src/personas.ts && bun run verify` AND a startup-load test resolves `one` persona from the parsed `.md` inventory.
-
-```yaml
-demo:
-  command: "bun vitest run channels/test/personas-md.test.ts"
-  asserts: "channels loads persona 'one' from one.ie/agents/*.md via parse(); BOT_PERSONA resolves by name"
-  budget:  "<2s wall · <120 LOC test"
-```
-
-### W1 — Recon  [Haiku · parallel]
-1. **Existing-code recon**
-   - [ ] `channels/src/personas.ts` — the hardcoded map (one, concierge, cmo, strategist, copywriter, analyst) + `Persona` type
-   - [ ] `channels/src/index.ts` — every `personas[...]` / `BOT_PERSONA` lookup (recon: index.ts:62, 316)
-   - [ ] `one.ie/agents/*.md` — confirm the roles exist as `.md` with `name:` frontmatter
-2. **Primitive-inventory recon**
-   - [ ] `@oneie/sdk` `parseAgentMd()` (in `packages/sdk/src/compile.ts`, re-exported `as parse`) — signature + returned shape; does it run in a Worker (no fs)? how are `.md` files bundled or R2-fetched?
-
-### W2 — Decide  [Opus · high]
-- [ ] **startup load mechanism** — bundle `one.ie/agents/*.md` as imports, or fetch from `CONTENT` R2 at first request? (Workers have no fs — decide.)
-- [ ] **frontmatter ↔ Persona mapping** — does `parse()` output cover every field `personas.ts` provided? Note gaps.
-- [ ] **fallback** — if a `.md` is missing/malformed, what does `BOT_PERSONA` resolve to? (don't crash the worker)
-- [ ] **Compose-or-construct** — no new file; move `Persona` type into existing `types.ts`, add loader to existing `context.ts`/`index.ts`.
-
-### W3 — Edit  [Sonnet · parallel]
-**W3a:**
-- [ ] `channels/src/types.ts` — add `Persona` type (moved from personas.ts)
-- [ ] `channels/test/personas-md.test.ts` — demo (new)
-- [ ] `plans/clean.md` — mark "Personas from Markdown" done
-**W3b:**
-- [ ] `channels/src/index.ts` (or `context.ts`) — call `parse()` at startup, build inventory, resolve `BOT_PERSONA` by `name`
-- [ ] `rm channels/src/personas.ts` (after callers swapped)
-
-### W4 — Verify  [Haiku×5 · complex]
-- [ ] `bun run verify` green · `delta_tsc ≤ 0`
-- [ ] demo exits 0 (persona resolved from `.md`)
-- [ ] `! test -f channels/src/personas.ts`
-- [ ] reuse audit · goal-fit ≥ 0.50 · composite ≥ 0.65
 
 ---
 
@@ -636,7 +755,8 @@ demo:
 
 - `plans/clean.md` — the architecture doc this todo executes
 - `plans/template-todo.md` — the contract this file follows
-- `agents/src/index.ts` — current runtime entry (becomes `channels/src/index.ts`)
-- `one.ie/web/src/pages/api/chat.ts` — current web runtime (becomes a proxy)
+- `channels/src/index.ts` — the runtime entry (`/message` already emits UIMessage SSE)
+- `channels/src/agents/builder.ts` — `makeAgent` + `CallOptions` (C6 enriches; C7 layers tools)
+- `one.ie/web/src/pages/api/chat.ts` — web runtime (C9 guts to gates+proxy)
 - `plans/dictionary.md` — canonical names
 - `plans/rubrics.md` — scoring bands
