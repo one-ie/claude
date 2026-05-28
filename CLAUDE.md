@@ -24,9 +24,9 @@ Claude Code harness. Commands, skills, rules, hooks, and subagents.
 | `agents/` | Spawned via Agent tool — **isolated context, no parent CLAUDE.mds inherited** |
 | `hooks/` | Fire on events per `settings.json` |
 
-## The /do → W1-W4 cycle
+## The /do lifecycle
 
-`/do <todo-file>` — W1 recon → W2 decide → W3 edit → W4 verify → rubric ≥ 0.65 → ship
+`/do <anything>` — idea → goal → promise → survey → spec → todo → code → tests → proof → docs → release. Walks the artifact spine, writing what's missing and skipping what exists. The BUILD engine inside is W0→W4 (recon → decide → edit → verify, rubric ≥ 0.65).
 
 Full contract: `commands/do.md`
 

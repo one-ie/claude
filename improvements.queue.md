@@ -85,3 +85,12 @@
 - **convention** `.claude/agents/w1-recon.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
 - **convention** `.claude/agents/w2-decide.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
 - **convention** `.claude/agents/w4-verify.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-28T13:07:13Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-28T13:11:23Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-28T13:14:27Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
