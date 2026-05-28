@@ -19,8 +19,9 @@ one-ie/
 ├── schema/         # TypeDB .tql schema + migrations → github.com/one-ie/schema
 ├── sync/           # Scheduled Worker — TypeDB ↔ KV ↔ D1 ↔ SUI
 ├── backup/         # Scheduled Worker — KV snapshots → R2 daily
-├── plans/          # All spec, todo, and architecture docs
-└── text/           # Marketing copy — headlines, CTAs, page text
+├── .claude/        # Claude Code harness → github.com/one-ie/claude
+├── plans/          # All spec, todo, and architecture docs → github.com/one-ie/plans
+└── text/           # Marketing copy — headlines, CTAs, page text → github.com/one-ie/text
 ```
 
 ## Source of truth
@@ -29,9 +30,9 @@ one-ie/
 |--------|----------|
 | Web UI + API routes | `one.ie/web/` |
 | TypeDB schema | `schema/` — never duplicate .tql elsewhere |
-| Architecture + specs | `plans/` — design before code |
-| Marketing copy | `text/` — read `.claude/product-marketing.md` voice contract |
-| Claude Code config | `.claude/` — commands, rules, subagents |
+| Architecture + specs | `plans/` — design before code → github.com/one-ie/plans |
+| Marketing copy | `text/` — read `.claude/product-marketing.md` voice contract → github.com/one-ie/text |
+| Claude Code config | `.claude/` — commands, rules, subagents → github.com/one-ie/claude |
 
 ## The 6 dimensions (LOCKED — never rename)
 
