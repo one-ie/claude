@@ -122,7 +122,7 @@ if (!isGatewayRequest(request, env)) {
 - [x] `cd one.ie/web` tsc --noEmit = 0 errors (delta_tsc = 0), biome check clean
 - [x] Guard present in all 9: `grep -rl "isGatewayRequest" src/pages/api/ | wc -l` = 9
 - [x] No type errors in new gateway-guard.ts
-- [ ] **demo:** direct hit returns 403 — DEFERRED: requires `wrangler secret put GATEWAY_SERVICE_SECRET` on one-prod + deploy. Guard is a verified no-op until secret set (`if (!env.GATEWAY_SERVICE_SECRET) return true`).
+- [x] **demo: PASSED LIVE (2026-05-28).** Guard upgraded to **origin-allow** (Opt 1): allows X-Gateway-Key OR Origin/Referer `*.one.ie` OR Authorization-present; 403s only anonymous foreign hits (keeps the 57 same-origin/internal callers working). Deployed one-prod (v0f6baee3) dormant, then armed via `GATEWAY_SERVICE_SECRET` (same value on one-gateway + one-prod, set by `--name` — `--env production` mis-targets the stale `one-prod-production` orphan, that was the gotcha). Verified: anon signal→403, Origin one.ie→401 (route auth, no regression), api.one.ie forward passes guard, anon select(cache-bust)→403, app.one.ie→200, homepage 200. Rollback = `wrangler secret delete GATEWAY_SERVICE_SECRET --name one-prod`.
 - [x] Rubric ≈ 0.92 ≥ 0.65
 
 ---
