@@ -66,7 +66,7 @@ channels/src/
 │   ├── substrate.ts  ← mark, warn, signal, fade, follow (always present)
 │   ├── web.ts        ← emit_card, emit_section, emit_chips (web channel only)
 │   └── workspace.ts  ← compile, patch_agent, billing, eval (owner channel only)
-├── channels.ts       ← Telegram + Discord normalize/send
+├── ingress.ts        ← Telegram + Discord normalize/send (was channels.ts — see naming below)
 ├── middleware.ts     ← provider routing + substrateMiddleware
 ├── personas.ts       ← worker-level defaults (BOT_PERSONA opt-in)
 ├── context.ts        ← slug → soul → system prompt (replaces prompt.ts + loadContext)
@@ -147,21 +147,55 @@ close the loop
 
 ## The Migration
 
-Four steps. Each is independently shippable.
+Seven steps. Each is independently shippable.
 
-### Step 1 — `packages/sdk/src/soul.ts`
-Extract the soul function. Nothing breaks. Both workers still use their own copy until Step 2/3 land.
+### Step 1 — Rename `agents/` directory → `channels/`
+The runtime directory and the wrangler worker name should match. After this, `agents/` unambiguously means definitions (`one.ie/agents/`). The runtime is `channels/`.
 
-### Step 2 — Make `channels` multi-tenant
-Change `loadContext` to accept `slug` from the request body. Fall back to `WORKSPACE_SLUG` env for dedicated bot deployments. Add `CONTENT` R2 binding to `wrangler.toml`.
+```bash
+mv agents/ channels/
+# update wrangler.toml: name = "channels"
+# update package.json: "name": "channels"
+# update root README and any CI scripts referencing agents/
+```
 
-### Step 3 — Move web tools into `channels`
+### Step 2 — Rename `channels/src/channels.ts` → `ingress.ts`
+A file called `channels.ts` inside a worker called `channels/` is a naming trap. The file normalizes inbound signals from Telegram and Discord — it's an ingress normalizer, not a channel definition. Rename it and update the single import in `index.ts`.
+
+### Step 3 — Delete `channels/src/adapters/`
+602 lines of Shopify, Stripe, HubSpot, Salesforce, Klaviyo, and GHL adapters. Not imported anywhere in the worker — confirmed dead code. Delete the directory.
+
+### Step 4 — `packages/sdk/src/soul.ts`
+Extract the soul function. Nothing breaks. Both workers still use their own copy until Step 5/6 land.
+
+### Step 5 — Make `channels` multi-tenant
+Change `loadContext` to accept `slug` from the request body. Fall back to `WORKSPACE_SLUG` env for dedicated bot deployments. Add `CONTENT` R2 binding to `wrangler.toml`. Import `readWorkspaceSoul` from `@oneie/sdk`.
+
+### Step 6 — Move web tools into `channels`
 Copy `chat.ts` tool definitions into `channels/src/tools/web.ts` and `tools/workspace.ts`. Wire them into `makeAgent` behind the `channel = 'web'` guard. Delete the tool definitions from `chat.ts`.
 
-### Step 4 — Replace `chat.ts` with a proxy
-Once Step 3 is verified, replace `chat.ts` with the 20-line proxy. Add `CHANNELS_URL` env var to `one.ie/web/wrangler.toml`.
+### Step 7 — Replace `chat.ts` with a proxy
+Once Step 6 is verified, replace `chat.ts` with the 20-line proxy. Add `CHANNELS_URL` env var to `one.ie/web/wrangler.toml`.
 
-**Data note:** `channels:${group}` substrate prefix replaces `claw:${group}`. Check D1 + TypeDB for existing rows before deploying Step 2.
+**Data note:** `channels:${group}` substrate prefix replaces `claw:${group}`. Check D1 + TypeDB for existing rows before deploying Step 5.
+
+---
+
+## Longer Term — Personas from Markdown
+
+`channels/src/personas.ts` defines `one`, `concierge`, `cmo`, `strategist`, `copywriter`, `analyst` as hardcoded TypeScript objects. The same roles exist as `.md` files in `one.ie/agents/`. Two sources of truth for the same thing.
+
+The endpoint: `personas.ts` is deleted. `channels` loads personas at startup by parsing the agent `.md` files from R2 (or the bundled `one.ie/agents/` directory). `BOT_PERSONA` becomes a key into the parsed `.md` inventory rather than a key into a hardcoded map.
+
+This makes "agent definitions are data, not code" fully true — the runtime has no embedded persona content at all.
+
+**What needs to happen:**
+- `@oneie/sdk` `parse()` already reads the `.md` frontmatter into a typed structure
+- `channels` calls `parse()` at startup on the bundled or R2-fetched agent files
+- `personas.ts` is deleted; `Persona` type moves to `types.ts`
+- `BOT_PERSONA` env var resolves to a parsed `.md` by `name:` field
+
+Not urgent — `personas.ts` works fine and the `.md` files are the canonical source for TypeDB sync. But the next time a persona needs updating, update the `.md` and wire the loader rather than editing TypeScript.
 
 ---
 
@@ -177,10 +211,17 @@ Once Step 3 is verified, replace `chat.ts` with the 20-line proxy. Add `CHANNELS
 ## After
 
 ```
-channels/        ← one runtime, all surfaces, ~900 lines
-one.ie/web/      ← UI shell + auth proxy, zero LLM code
-packages/sdk/    ← readWorkspaceSoul — one soul function
-one.ie/agents/   ← agent definitions — data, not code
+channels/            ← one runtime, all surfaces, ~900 lines (was agents/)
+  src/ingress.ts     ← was channels.ts
+  src/tools/         ← substrate + web + workspace, layered by channel
+  src/context.ts     ← slug → soul → identity → system prompt
+  wrangler.toml      ← name = "channels", CONTENT R2 bound
+one.ie/web/          ← UI shell + auth proxy, zero LLM code
+  src/pages/api/chat.ts  ← 20-line proxy to channels /message
+packages/sdk/        ← readWorkspaceSoul — one soul function
+one.ie/agents/       ← agent definitions — data, not code, loaded by channels at runtime
 ```
 
-1,719 lines of parallel runtimes → 900 lines of one. Same capability. Half the surface area.
+1,719 lines of parallel runtimes → ~900 lines of one. 602 lines of dead adapters gone. Same capability. Half the surface area.
+
+**Longer term:** `personas.ts` deleted, personas loaded from `one.ie/agents/*.md` at startup. "Agent definitions are data, not code" becomes fully true.

@@ -336,15 +336,25 @@ $EDITOR my-agent/agent.md                    # follow this guide
 oneie agent validate my-agent/agent.md
 oneie agent lint my-agent/agent.md
 
-# 5. Publish to your workspace (R2 → {slug}/agents/<name>.md)
+# 5a. Publish to your ONE workspace (R2 → {slug}/agents/<name>.md)
 oneie agent publish my-agent/agent.md --slug acme
 
-# 6. Compile to Fetch.ai Python (optional)
-oneie agent compile my-agent/agent.md --target uagents > my_agent.py
+# 5b. Deploy to Agentverse (Fetch.ai) — compiles + deploys in one command
+oneie agent publish my-agent/agent.md --target agentverse
+# requires AGENTVERSE_API_KEY env var (or --agentverse-key flag)
+# → returns agentAddress, walletAddress, agentverseUrl
+
+# 6. Compile to Fetch.ai Python manually (if you need the .py file)
+oneie agent compile my-agent/agent.md --target uagents
+oneie agent compile my-agent/agent.md --target uagents --out agent.py
 ```
 
-After step 5: live at `https://acme.one.ie/chat?agent=my-agent` and at
+After step 5a: live at `https://acme.one.ie/chat?agent=my-agent` and at
 `https://one.ie/studio/my-agent` (for the unified-studio rendering).
+
+After step 5b: live on Agentverse and discoverable via ASI:One. The deployed agent
+has `ONEIE_API_KEY` injected as a secret so it can call back to the ONE substrate
+(`signal`, `mark`, `warn`, `fade`, `follow`) from inside its uAgents handlers.
 
 ---
 

@@ -36,8 +36,8 @@ fi
 case "$tier" in
   PATCH)   spine="code verify";                                            cls=TRIVIAL; ceil=5000 ;;
   FIX)     spine="survey code tests proof";                               cls=SIMPLE;  ceil=30000 ;;
-  FEATURE) spine="promise spec clarify todo analyze code tests docs proof release"; cls=COMPLEX; ceil=150000 ;;
-  SCHEMA)  spine="promise spec reconcile clarify todo analyze code tests docs proof release"; cls=COMPLEX; ceil=200000 ;;
+  FEATURE) spine="promise survey spec clarify todo analyze code tests proof docs release"; cls=COMPLEX; ceil=150000 ;;
+  SCHEMA)  spine="promise survey spec reconcile clarify todo analyze code tests proof docs release"; cls=COMPLEX; ceil=200000 ;;
 esac
 
 printf '{"tier":"%s","spine":"%s","classifier":"%s","ceiling_tokens":%s}\n' "$tier" "$spine" "$cls" "$ceil"

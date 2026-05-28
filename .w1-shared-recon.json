@@ -1,0 +1,66 @@
+{
+  "plan": "social-poster",
+  "capturedAt": "2026-05-26T00:00:00Z",
+  "files_read": [
+    "agents/src/composio-toolkits.ts",
+    "agents/src/composio.ts",
+    "agents/src/cron.ts",
+    "agents/src/agents/export-hubspot.ts",
+    "one.ie/web/src/pages/api/composio/connect.ts",
+    "one.ie/web/src/components/in/Navigation.tsx"
+  ],
+  "critical_findings": [
+    {
+      "id": "d1-mismatch",
+      "severity": "ESCAPE_TRIGGER",
+      "description": "Web worker DB: one-owners (0559422e-...) vs agents worker DB: claw (ac240779-...) — DIFFERENT databases",
+      "impact": "C2 migration goes in one.ie/web/migrations/. C4 scheduler calls HTTP API instead of reading D1 directly.",
+      "action": "escape: halt C2 at W2; apply HTTP-bridge pattern; re-confirm before C2 W3"
+    },
+    {
+      "id": "crons-disabled",
+      "severity": "BLOCKER_C4",
+      "description": "agents/wrangler.toml has crons=[] (disabled since 2026-05-17 — at 5-cron account limit)",
+      "impact": "C4 cannot add cron triggers until a slot is freed. publishDuePosts and generateWeeklyPlan will be wired in code but won't fire until cron slots are available.",
+      "action": "User must free a cron slot on another CF worker OR upgrade plan before C4 crons are live"
+    }
+  ],
+  "shared_patterns": {
+    "composio_toolkits": {
+      "auth_configs_format": "uppercase key → 'ac_XXXXXXXXXX' string",
+      "skill_toolkit_map_format": "lowercase-skill-name → 'UPPERCASE_TOOLKIT_ID'",
+      "current_platforms": ["GMAIL", "GITHUB", "SLACK", "GOOGLECALENDAR", "HUBSPOT", "TELEGRAM"],
+      "to_add_c1": ["TWITTER", "LINKEDIN", "INSTAGRAM", "TIKTOK", "FACEBOOK"]
+    },
+    "composio_accounts": {
+      "list_pattern": "composio.connectedAccounts.list({ userIds: [userId], statuses: ['ACTIVE'] })",
+      "slug_extraction": "conns.items.map(c => (c.toolkit as unknown as { slug: string }).slug)",
+      "error_handling": "silent return {} on any error"
+    },
+    "writethrough_loop": {
+      "select": "SELECT WHERE status matching AND attempts < max_retries ORDER BY created_at ASC LIMIT N",
+      "success": "DELETE row + mark(env, source, target, 1)",
+      "failure": "UPDATE attempts += 1 + warn(env, source, target, 1)",
+      "no_interim_status": true,
+      "catch_silently": true
+    },
+    "api_route_shape": {
+      "prerender": "export const prerender = false",
+      "handler_signature": "export const POST: APIRoute = async ({ request, locals }) => {}",
+      "locals_user": "locals.slug",
+      "env_access": "from cloudflare:workers or Astro runtime context",
+      "d1_binding": "env.DB (one-owners database)"
+    },
+    "navigation_tabs": {
+      "source_of_truth": "RAIL_ORDER in one.ie/web/src/components/in/Inbox.tsx (NOT Navigation.tsx)",
+      "tab_shape": "{ id: Dimension, zone, label, preset?, icon?, sub?, filter? }",
+      "dimension_locked": "6 values only — new tabs MUST use preset, not new dimension id",
+      "suggested_presets": "social, calendar, kanban under existing dimensions (events/actors)"
+    },
+    "cron_dispatch": {
+      "pattern": "switch(handler) in runScheduled(); ctx.waitUntil() for async",
+      "current_jobs": ["journey-tick", "identity-tick", "export-tick", "evolution-tick", "harden-tick", "fade-tick"],
+      "wrangler_crons_state": "disabled (crons=[])"
+    }
+  }
+}

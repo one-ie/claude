@@ -290,19 +290,24 @@ Before drawing dependency arrows, ask: **which cycle, if it passes, most cheaply
 | Cycle that can run with stubs for later work | Don't wait for foundations to validate the destination |
 | Cycle you'd demo first if all else failed | If you'd show this one to a user, it should ship first |
 
-### Cycle-level DAG (what blocks what)
+### Cycle-level DAG (what blocks what) — Mermaid, required
 
-```
-       C1
-     ╱  │  ╲
-    C2  C3  C4         ← all three independent of each other
-     ╲  │  ╱
-       C5
-        │
-       C6
+Every plan ships this graph. `/do` reads it to compute batches and fire the maximum parallel fan-out. Siblings (no edge between them) run their waves concurrently.
+
+```mermaid
+graph TD
+  C1[C1 foundation] --> C2[C2]
+  C1 --> C3[C3]
+  C1 --> C4[C4]
+  C2 --> C5[C5 composes C2-C4]
+  C3 --> C5
+  C4 --> C5
+  C5 --> C6[C6 polish]
 ```
 
-**The only valid arrow:** C_n reads a file that C_m **writes** (the file is absent or wrong until C_m completes on disk). **No other reason justifies an arrow.**
+C2·C3·C4 have no edge between them → fully parallel. Label every edge with the file that justifies it (`C1 -->|writes lib/foo.ts| C2`) when it isn't obvious.
+
+**The only valid arrow:** C_m reads a file that C_n **writes** (the file is absent or wrong until C_n completes on disk). **No other reason justifies an arrow.**
 
 **Arrow test — before drawing any arrow, fill this in:**
 ```

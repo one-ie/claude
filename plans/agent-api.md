@@ -230,6 +230,143 @@ config diff, not a new command implementation.
 
 ---
 
+## Entity lifecycle — `world:*` receivers
+
+The 14 operations are the wire. `world:*` receivers are the vocabulary that
+makes entity management self-documenting. Every call below is a plain `signal`
+or `ask` — no new verbs, no new endpoints.
+
+**Rule:** receivers that return a value (id, key, token) use `ask`. Everything
+else uses `signal`.
+
+### Workspace bootstrap (customer onboarding)
+
+| Receiver | Op | Content | Returns |
+|----------|----|---------|---------|
+| `world:create-workspace` | `ask` | `{ name, slug, ownerEmail }` | `{ wsid, slug }` |
+| `world:invite-member` | `signal` | `{ workspace, email, role: 'owner'\|'member'\|'viewer' }` | — |
+| `world:remove-member` | `signal` | `{ workspace, aid }` | — |
+| `world:suspend-workspace` | `signal` | `{ workspace }` | — |
+
+```ts
+// Customer signs up
+const { wsid } = await c.ask('world:create-workspace', {
+  content: { name: 'Acme', slug: 'acme', ownerEmail: 'alice@acme.com' }
+})
+```
+
+---
+
+### Groups (dimension 1)
+
+| Receiver | Op | Content | Returns |
+|----------|----|---------|---------|
+| `world:create-group` | `ask` | `{ name, type, owner?, tags? }` | `{ gid }` |
+| `world:update-group` | `signal` | `{ gid, name?, tags?, meta? }` | — |
+| `world:remove-group` | `signal` | `{ gid }` | — |
+
+---
+
+### Actors (dimension 2)
+
+| Receiver | Op | Content | Returns |
+|----------|----|---------|---------|
+| `world:create-actor` | `ask` | `{ name, type, group?, tags?, model?, prompt? }` | `{ aid }` |
+| `world:update-actor` | `signal` | `{ aid, name?, tags?, prompt?, model? }` | — |
+| `world:remove-actor` | `signal` | `{ aid }` | — |
+| `world:create-key` | `ask` | `{ actor, scope?: 'read'\|'write'\|'admin', label? }` | `{ key, keyId }` |
+| `world:revoke-key` | `signal` | `{ keyId }` | — |
+
+```ts
+// Create a user actor + issue an API key
+const { aid }       = await c.ask('world:create-actor', {
+  content: { name: 'alice', type: 'human', group: wsid }
+})
+const { key, keyId } = await c.ask('world:create-key', {
+  content: { actor: aid, scope: 'write', label: 'prod' }
+})
+```
+
+Revoking is `warn` under the hood — the key actor's incoming paths accumulate
+resistance until `follow()` stops routing to it. No separate ACL table.
+
+---
+
+### Things (dimension 3)
+
+| Receiver | Op | Content | Returns |
+|----------|----|---------|---------|
+| `world:create-thing` | `ask` | `{ name, type, group?, tags?, price? }` | `{ tid }` |
+| `world:update-thing` | `signal` | `{ tid, name?, tags?, price?, meta? }` | — |
+| `world:remove-thing` | `signal` | `{ tid }` | — |
+
+`type` is open — `'skill'`, `'task'`, `'token'`, `'item'`, `'document'`, any
+string your domain needs. Routing only cares about tags.
+
+---
+
+### Paths (dimension 4)
+
+Paths are created implicitly by `mark` and `warn`. Explicit lifecycle:
+
+| Receiver | Op | Content | Returns |
+|----------|----|---------|---------|
+| `world:remove-path` | `signal` | `{ edge }` | — |
+| `world:freeze-path` | `signal` | `{ edge }` | — |
+| `world:unfreeze-path` | `signal` | `{ edge }` | — |
+
+`freeze` blocks signals on the path without deleting pheromone state. Use to
+suspend access (e.g. billing lapse) without losing the strength history.
+
+---
+
+### Learning (dimension 6)
+
+Events (dimension 5) are written automatically by every signal — no create receiver
+needed. Learning requires explicit promotion:
+
+| Receiver | Op | Content | Returns |
+|----------|----|---------|---------|
+| `world:promote-hypothesis` | `signal` | `{ hid }` | — |
+| `world:reject-hypothesis` | `signal` | `{ hid, reason? }` | — |
+| `world:create-hypothesis` | `ask` | `{ claim, tags?, confidence? }` | `{ hid }` |
+
+---
+
+### Full bootstrap sequence
+
+```ts
+// 1. Workspace
+const { wsid } = await c.ask('world:create-workspace', {
+  content: { name: 'Acme', slug: 'acme', ownerEmail: 'ceo@acme.com' }
+})
+
+// 2. Actors
+const { aid: alice } = await c.ask('world:create-actor', {
+  content: { name: 'alice', type: 'human', group: wsid }
+})
+const { aid: bot }   = await c.ask('world:create-actor', {
+  content: { name: 'acme-bot', type: 'agent', group: wsid, tags: ['review'] }
+})
+
+// 3. Things (skills the bot can do)
+await c.ask('world:create-thing', {
+  content: { name: 'review-copy', type: 'skill', group: wsid, tags: ['review'], price: 0.01 }
+})
+
+// 4. Key for alice
+const { key } = await c.ask('world:create-key', {
+  content: { actor: alice, scope: 'write', label: 'cli' }
+})
+
+// 5. Route work
+const out = await c.ask('world:review', { content: { text: 'draft...' } })
+```
+
+Five calls. Workspace, two actors, a skill, a key. Everything else is signals.
+
+---
+
 ## Addressing grammar
 
 The receiver path is the **single source of truth** for who receives a

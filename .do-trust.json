@@ -1,0 +1,8 @@
+{
+  "level": "trusted",
+  "consecutive": 6,
+  "composite": 0.92,
+  "updated": "2026-05-28T00:00:00Z",
+  "plan": "gateway-split",
+  "cycle": "C1"
+}
