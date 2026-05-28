@@ -2,7 +2,7 @@
 # Each top folder below is its OWN git repo / buildable unit — never tracked here.
 /one.ie/
 /packages/
-/agents/
+/channels/
 /api/
 /schema/
 /sync/

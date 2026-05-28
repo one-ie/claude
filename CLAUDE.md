@@ -14,7 +14,7 @@ one-ie/
 │   ├── react/      # @oneie/react — React 19 hooks + context
 │   ├── mcp/        # @oneie/mcp — MCP server (12 verbs + discovery)
 │   └── cli/        # @oneie/cli — oneie / one bins
-├── agents/         # Edge agent worker — Hono + AI SDK → github.com/one-ie/agents
+├── channels/       # Agent runtime worker — Hono + AI SDK → github.com/one-ie/agents
 ├── api/            # Gateway — TypeDB proxy → github.com/one-ie/api
 ├── schema/         # TypeDB .tql schema + migrations → github.com/one-ie/schema
 ├── sync/           # Scheduled Worker — TypeDB ↔ KV ↔ D1 ↔ SUI
@@ -74,7 +74,7 @@ Detail and code patterns: `.claude/rules/engine.md`
 | Package | What | Deployed |
 |---------|------|---------|
 | `one.ie/web/` | Astro site + API routes | https://one.ie |
-| `agents/` | Hono + AI SDK — Telegram/Discord/HTTP ingress | CF Worker |
+| `channels/` | Hono + AI SDK — Telegram/Discord/HTTP/web ingress | CF Worker |
 | `api/` | TypeDB proxy + WsHub DO | https://api.one.ie |
 | `schema/` | TypeDB .tql + migrations | TypeDB Cloud |
 | `sync/` | Scheduled sync | CF Scheduled Worker |

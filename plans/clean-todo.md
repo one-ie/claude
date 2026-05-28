@@ -200,30 +200,39 @@ Batch 0 (shared)
         chat.ts 1226 lines, personas.ts 93 lines, builder.ts@agents/src/agents/, CONTENT R2 absent
 
 Batch 1
-  - [ ] C1 — rename agents/ → channels/                state: ready  ← START HERE
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C4 — packages/sdk/src/soul.ts                  state: ready
-    - [ ] W1 · W2 · W3 · W4   (W1 verified: readSoulSuffix + buildCompanyContextSuffix located; no sdk/soul.ts yet)
+  - [x] C1 — rename agents/ → channels/                state: DONE (full rename: dir+worker name=channels; nested repo intact, remote still one-ie/agents — repo rename deferred to push; tsc delta 0)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+  - [x] C4 — packages/sdk/src/soul.ts                  state: DONE (readWorkspaceSoul + buildSoulSuffix + SoulDb exported, in dist/; sdk build green after fixing pre-existing auth.ts TS2742)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    - NOTE: channels/ has NO @oneie/sdk dependency yet + nothing imports it. C5/C8's "import from @oneie/sdk" premise requires adding the dep first — decide in C5 W2.
 
-Batch 2  (fires when C1 closes)
-  - [ ] C2 — channels.ts → ingress.ts                  state: blocked-on-C1
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C3 — delete adapters/                          state: blocked-on-C1
-    - [ ] W1 · W2 · W3 · W4
+Batch 2  (DONE)
+  - [x] C2 — channels.ts → ingress.ts                  state: DONE (git mv; index.ts import + header comment updated; tsc 0)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+  - [x] C3 — delete adapters/                          state: DONE (602 LOC removed; tsc still 0 → confirmed dead)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
 
 Batch 3
-  - [ ] C5 — channels multi-tenant                     state: blocked-on-C1,C4
-    - [ ] W1 · W2(2 of 3 decisions pre-pinned: data-prefix + CONTENT-R2) · W3 · W4
+  - [~] C5 — channels multi-tenant                     state: CODE DONE · deploy+HTTP-parity DEFERRED (production)
+    - [x] W1 · [x] W2 · [x] W3 · [~] W4 (tsc 0, 6/6 bun tests pass; deploy parity check pending user)
+    - DECISION: channels stays standalone — NO @oneie/sdk dep. Kept readSoulSuffix (identical to sdk's readWorkspaceSoul). slug threaded via resolveWorkspaceSlug (body > WORKSPACE_SLUG > 'claw') into loadContext + /message. CONTENT R2 (one-content) bound. claw: data prefix kept literal per W2.
 
 Batch 4
-  - [ ] C6 — move web tools into channels              state: blocked-on-C5
-    - [ ] W1 · W2 · W3 · W4
+  - [ ] C6 — move web tools into channels              state: BLOCKED-ON-RESCOPE
+    - REALITY GAP: chat.ts is 1226 lines / ~15 web-coupled tools (eval, skill, payment, import_skill,
+      compile, patch_agent, delegate_to, patch_theme, emit_*, draft_social, composio, action tools) +
+      billing gates + CRO personalisation + rate-limit + x402, all importing web libs (lib/compile,
+      lib/eval/*, lib/billing, lib/cro/*) and Astro locals. clean.md assumed "a handful of emit tools."
+      Faithful move = port those libs into channels OR a shared pkg. Needs re-plan.
 
 Batch 5
-  - [ ] C7 — chat.ts → proxy                           state: blocked-on-C6
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C8 — personas from .md                         state: blocked-on-C1
-    - [ ] W1 · W2 · W3 · W4
+  - [ ] C7 — chat.ts → proxy                           state: BLOCKED-ON-C6 (and the same chat.ts reality gap)
+    - Note: plan says "keep auth + x402 + CRO in web at request level" — but billing/CRO/skill/eval
+      currently live INSIDE the tool loop in chat.ts, not at request level. Re-plan what truly stays.
+  - [ ] C8 — personas from .md                         state: BLOCKED-ON-RESCOPE
+    - REALITY GAP: (1) one.ie/agents/ is a SEPARATE repo from channels/ — no build-time bundling;
+      would need R2 runtime fetch (different design). (2) one.md + concierge.md DON'T EXIST in
+      one.ie/agents/ — loading only from .md loses personas.one (the /message web default).
 
 Plan close
   - [ ] Plan outcome command exits 0
