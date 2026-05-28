@@ -116,8 +116,8 @@ listener_start() {
               /bin/echo "$payload" >> "$jsonl"
               new_ts=$(/bin/echo "$payload" | jq -r '.ts // empty' 2>/dev/null)
               [ -n "$new_ts" ] && /bin/echo "$new_ts" > "$last_ts_file"
-              sender=$(/bin/echo "$payload" | jq -r '.sender // empty' 2>/dev/null)
-              snippet=$(/bin/echo "$payload" | jq -r '.content // empty' 2>/dev/null | /usr/bin/cut -c1-80)
+              sender=$(/bin/echo "$payload" | jq -r '.sender // empty' 2>/dev/null | tr -cd 'A-Za-z0-9 _.:@-')
+              snippet=$(/bin/echo "$payload" | jq -r '.content // empty' 2>/dev/null | /usr/bin/cut -c1-80 | tr -cd 'A-Za-z0-9 _.:@-,!?')
               [ -n "$sender" ] && osascript -e "display notification \"$snippet\" with title \"cc-connect · $group\" subtitle \"$sender\"" 2>/dev/null || true
               ;;
           esac
