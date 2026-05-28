@@ -95,7 +95,9 @@ context_triggers:
 
 ## ▶ START HERE (cold `/do` — read this whole block before W1)
 
-**Done + committed** — C1-C5. Do not redo. Commits: `channels eb8c593` · `packages 9ccc080` · `root 663f6a7`. **Begin at Batch 4 (C6).**
+**Done + committed** — C1-C5. Do not redo. Commits: `channels eb8c593` · `packages 9ccc080` · `root 663f6a7`.
+**Done this session (on disk, uncommitted)** — C6 (proxy contract), C7 (tool layers), C8 (persona R2 loader). channels tsc 0, 22/22 bun tests. Do not redo.
+**Begin at Batch 6 (C9)** — gut chat.ts to gate+proxy+meter. **Read `plans/chat.md` first — it is C9's design** (one `systemSuffix` string + one stream tee + a signed identity envelope that closes the C6 actorId spoof). C9 has a hard security gate: a forged `actorId` must resolve `owner=false`.
 
 **The runtime topology you cannot cheaply rediscover — take these as given:**
 
@@ -237,7 +239,8 @@ C6 is the keystone — the contract every later cycle reads. C7 (tool layers) an
 
 ## Status
 
-> **Session note (2026-05-29):** C1-C5 SHIPPED + committed (channels eb8c593 · packages 9ccc080 · root 663f6a7). Back half **RE-PLANNED** after recon exposed the original C6/C7/C8 as under-scoped: `chat.ts` is 1226 lines = request-gates + agent-turn + ~15 tools across 3 dependency classes; channels already emits the exact UIMessage-SSE protocol web expects (proxy is transparent). New C6-C9: contract → layers → unify → gut. Outcome revised (dropped the false ≤40-line clause). Next session starts at Batch 4 (C6, the keystone). Deploys for C5 + C9 remain deferred to the user.
+> **Session note (2026-05-29):** C1-C5 SHIPPED + committed (channels eb8c593 · packages 9ccc080 · root 663f6a7). Back half RE-PLANNED → C6-C9: contract → layers → unify → gut.
+> **Session note (2026-05-29, cont.):** **C6, C7, C8 DONE** on disk (uncommitted) — channels tsc 0, 22/22 bun tests. C6=proxy contract (Viewer/surface/slug on CallOptions, resolveViewer derives owner from ONE_DB). C7=tool layers (tools/web.ts + tools/workspace.ts, channelTools gate, signal() helper via gateway, no web fetch). C8=persona R2 loader (resolvePersona, minimal agent-md parser, personas.ts kept). **C9 DESIGNED in `plans/chat.md`** (gate+proxy+meter: one systemSuffix string + one stream tee). Security review caught the C6 `actorId` spoof → folded into C9 as a signed-identity hard gate. Composio key removed from `channels/composio-list-apps.mjs` (**rotate it — was in git history**). Next session: run `/do plans/clean-todo.md --auto`, starts at C9. Deploys (C5 + C9) deferred to user.
 
 ```
 Batch 0 (shared)
@@ -265,30 +268,46 @@ Batch 3
     - DECISION: channels stays standalone — NO @oneie/sdk dep. Kept readSoulSuffix (identical to sdk's readWorkspaceSoul). slug threaded via resolveWorkspaceSlug (body > WORKSPACE_SLUG > 'claw') into loadContext + /message. CONTENT R2 (one-content) bound. claw: data prefix kept literal per W2.
 
 Batch 4  (re-planned — the keystone)
-  - [ ] C6 — proxy contract                            state: READY  ← START HERE
-    - [ ] W1 · W2 · W3 · W4
-    - Enrich /message body + CallOptions with viewer{id,role,owner} + surface + agentId; thread through
-      makeAgent.prepareCall. No tool moves, no behavior change — just the data spine later cycles read.
+  - [x] C6 — proxy contract                            state: DONE (tsc delta 0, 6/6 contract tests pass)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    - Viewer{actorId,role,owner}+surface on CallOptions+callOptionsSchema; resolveViewer (context.ts)
+      derives owner from ONE_DB (actorId===slug OR active member admin/owner), KV-cached, safe default
+      owner=false; /message parses channel/actorId/agentId/surface (channel defaults 'api'). No tool moves.
+    - ⚠ SECURITY (open, closed by C9): /message currently trusts raw body `actorId` → spoofable (slugs
+      are public → POST {actorId:slug} yields owner=true). Fix = signed identity envelope: web HMAC-signs
+      {actorId,slug,exp}, channels verifyIdentity() before resolveViewer, fail closed. Designed in plans/chat.md.
+      resolveViewer stays pure (only ever gets the verified actorId). NOT yet deployed → not live-exploitable.
 
 Batch 5  (re-planned — parallel, disjoint files)
-  - [ ] C7 — tools = a thin skin over the substrate    state: blocked-on-C6
-    - [ ] W1 · W2 · W3 · W4
-    - TWO layers: tools/web.ts (emit_* — REUSE existing emit_card) + tools/workspace.ts (patch_agent→D1
-      agents, patch_theme→D1 themes, field-service→D1 insert, delegate→gateway signal(), skill/compile/
-      import→CONTENT R2 + ported pure libs, eval→signal('skill:eval'), draft_social→REUSE). Wire into
-      makeAgent behind channel='web' + viewer.owner. NO WEB_URL — channels never fetches web (no-cycle gate).
-  - [ ] C8 — persona R2 loader (unify, don't delete)   state: blocked-on-C6
-    - [ ] W1 · W2 · W3 · W4
-    - Move findAgent/parseAgentMd/buildPersonaSystem into channels; per-slug agent .md from CONTENT R2;
-      personas.ts KEPT as typed worker-default fallback (one/concierge have no .md → no data loss).
+  - [x] C7 — tools = a thin skin over the substrate    state: DONE (tsc 0, 5/5 layer tests, no-cycle gate clean)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    - tools/web.ts (rich emit_card + chips/section/field-service/boq/event — pure envelopes; ported
+      sections/field-service-cards/boq-cards schemas + lib/compile, all pure zod) + tools/workspace.ts
+      (patch_agent→ONE_DB agents UPDATE+signal roster:changed, patch_theme→ONE_DB themes, field_service_book
+      →ONE_DB INSERT, delegate/eval/import→signal() via GATEWAY_URL, skill/compile→CONTENT R2). draft_social
+      REUSED from substrate layer. channelTools(env,{channel,viewer}) gates inclusion at build time; owner
+      tools self-deny (defense in depth). Added signal() helper to substrate.ts (GATEWAY /signal/<r>, not web).
+      slug added to CallOptions. NO WEB_URL/web fetch in tools/.
+  - [x] C8 — persona R2 loader (unify, don't delete)   state: DONE (tsc 0, 5/5 persona tests, personas.ts kept, suite 22/22)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    - lib/agent-md.ts: minimal frontmatter splitter (body=systemPrompt, flat-YAML meta) — thin-skin port,
+      NO js-yaml dep. context.ts resolvePersona({slug,agentId,botPersona}): ${slug}/agents/${agentId}.md from
+      CONTENT R2 → personas[botPersona] → personas.one, KV-cached, path-sanitized, never throws. /message
+      wired (loadContext left as-is — telegram/group path has D1 overrides + no agentId). personas.ts KEPT.
 
 Batch 6  (re-planned — closes the outcome)
-  - [ ] C9 — gut chat.ts → gates+proxy                 state: blocked-on-C7,C8 · deploy-gated
+  - [ ] C9 — gut chat.ts → gate+proxy+meter            state: DESIGNED → see plans/chat.md · deploy-gated
     - [ ] W1 · W2 · W3 · W4
-    - Keep request-gates (auth, billing pool, rate-limit, x402 receipt, CRO variant+cookie); replace the
-      entire LLM/tool/soul block with fetch(CHANNELS_URL/message, {slug,group,messages,channel:'web',
-      actorId,agentId,surface}) + SSE passthrough. Add CHANNELS_URL to web wrangler (NO WEB_URL — one-
-      directional). Deploy + parity check = user.
+    - DESIGN (plans/chat.md): the 3 "entanglements" each get a one-line home. Web collapses every prompt
+      suffix (CRO/i18n/snapshot/link/booking) into ONE opaque `systemSuffix` string — channels appends it
+      like soul (3-line channels change). Billing debit + thread persistence ride home on a single stream
+      tee (usage + assistant text from the AI-SDK finish event — no channels billing port). Keep request-
+      gates; replace LLM/tool/soul with fetch(CHANNELS_URL/message,{...C6 body, systemSuffix}) + tee. Add
+      CHANNELS_URL (NO WEB_URL). No feature drop. Deploy + parity = user.
+    - SECURITY (hard gate): closes the C6 actorId spoof — web mints a signed `identity` envelope
+      (HMAC {actorId,slug,exp}, 60s), channels verifyIdentity() before resolveViewer, raw body actorId
+      removed, fail closed. C9 won't close until a forged actorId resolves owner=false. IDENTITY_SECRET on both.
+    - Only real unknown (W1): SSE finish-event usage shape; fallback = X-Usage-Tokens header from channels.
 
 Plan close
   - [ ] Plan outcome command exits 0
