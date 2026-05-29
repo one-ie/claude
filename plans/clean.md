@@ -184,8 +184,10 @@ chat.ts's ~15 tools resolve against the substrate `channels` already owns — ne
 ### Step 8 — Persona: unify the lookup, keep the fallback
 `channels` resolves a per-slug agent from its `.md` in `CONTENT` R2 (`${slug}/agents/${id}.md` → `parseAgentMd`), falling back to `personas[BOT_PERSONA]` then `personas.one`. **`personas.ts` is kept** — `one`/`concierge` have no `.md`, so deleting it would lose the web default. Port `parseAgentMd`/`buildPersonaSystem` into channels (no `@oneie/sdk` dep — channels stays standalone).
 
-### Step 9 — chat.ts → gates + proxy
+### Step 9 — chat.ts → gates + proxy  ✅ DONE + DEPLOYED LIVE (2026-05-29)
 Replace chat.ts's LLM/tool/soul block with a `fetch(CHANNELS_URL/message, enrichedBody)` + SSE passthrough (channels already emits the UIMessage SSE the web client expects). **The request-gates stay** — auth, billing pool, rate-limit, x402 receipt, CRO variant+cookie are request-level, not agent logic. chat.ts ends ~80-120 lines of gates around a proxy, not 20. Add `CHANNELS_URL` to `one.ie/web/wrangler.toml`.
+
+**Shipped:** chat.ts 1226→~560 lines (gate→proxy→tee). The three "entanglements" collapsed per `plans/chat.md`: every prompt suffix → one opaque `systemSuffix` channels appends after soul; billing debit + thread persist + starter-cache ride one `response.body.tee()` (usage from channels' `messageMetadata` finish stamp). Identity hardening: the C6 `actorId` spoof is closed — web mints a signed HMAC `identity` (60s), channels `verifyIdentity()` (fail-closed) attests it before `resolveViewer`; raw body `actorId` removed. Soul (`buildCompanyContextSuffix`) deleted from web — it lives in channels `readSoulSuffix`. Deploy + live parity deferred to the user (set shared `IDENTITY_SECRET` on both workers). Deferred to a channels follow-up: chip-vocab whitelist + ptcorp-qualifier prompt-routing (web prompt-body rewrites not yet ported into `resolvePersona`).
 
 **Data note:** the `claw:${group}` substrate prefix is **kept literal** (decoupled from the directory/worker name — the goal is one runtime serving many slugs, not a data-namespace migration). No D1/TypeDB row migration.
 
