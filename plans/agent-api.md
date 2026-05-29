@@ -13,7 +13,7 @@ Everything else is addressing.
 - [`one/dsl.md`](../plans/dsl.md) — signal grammar, six verbs, four outcomes
 - [`one/one-ontology.md`](../plans/one-ontology.md) — six dimensions
 - [`one/dictionary.md`](../plans/dictionary.md) — every name
-- `web/public/openapi.yaml` — the machine-readable spec
+- `one.ie/web/public/openapi.yaml` — the machine-readable spec. The `/signal/{receiver}` + `/ask/{receiver}` request bodies are **generated** from `RECEIVERS`: `bun --cwd packages/sdk run generate:openapi` injects a `ReceiverPayload` `oneOf` (one member per receiver, with `x-cost`/`x-reversible`/`x-settles`/`x-effect` extensions) between the `generated:receivers` markers. CI drift gate: `generate:openapi && git diff --exit-code`. MCP `signal`/`ask` tool descriptions group receivers by `RECIPES` and point discovery at `ask("meta:catalog")`.
 
 This doc explains. The spec compiles. When they disagree, the spec wins.
 

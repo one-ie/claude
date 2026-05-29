@@ -257,12 +257,14 @@ This grounds in existing canon: `lifecycle.md` (REGISTER → SIGNAL → HARDEN +
 ### Recipes are declared, and earn three uses from one structure
 
 ```ts
+// As shipped (C6) — packages/sdk/src/receivers.ts. Each entry is
+// `readonly ReceiverName[]`, so a typo or renamed receiver is a compile error.
 export const RECIPES = {
   spine:     ["auth:agent", "world:create-key", "groups:join", "agents:sync"],
-  build:     [...spine, "world:create-workspace", "world:create-thing", "agents:deploy-on-behalf"],
-  trade:     [...spine, "capabilities:publish", "market:hire", "pay:weight"],
-  transact:  [...spine, "pay:weight", "dashboard:usage"],
-} as const  // every entry is a key of RECEIVERS — typo = compile error
+  build:     ["world:create-workspace", "world:create-group", "world:create-actor", "world:create-thing"],
+  trade:     ["capabilities:publish", "market:list", "market:hire", "pay:weight"],
+  transact:  ["market:bounty", "pay:weight"],
+} satisfies Record<string, readonly ReceiverName[]>
 ```
 
 - **Docs** — "how do I accept payments?" returns the ordered receiver sequence.

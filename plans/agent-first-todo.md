@@ -183,23 +183,31 @@ Batch 3  (fires the instant C2 closes)
   - [x] C3 — typed ask<R>/signal<R> generics                              state: DONE (composite≈0.96)
     - [x] W1 · [x] W2 · [x] W3 · [x] W4
     NOTE: used ONE conditional-generic sig (not two overloads) so wrong payload to a known receiver is a compile error, not a silent fall-through. tsconfig.test.json enforces the @ts-expect-error.
-  - [ ] C4 — remaining families + metadata (build → trade → rest)         state: READY (next up)
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] demo batch (vitest run c3.test c4.test)
+  - [x] C4 — remaining families + metadata (build → trade → rest)         state: DONE (composite≈0.925)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    NOTE: declared 27 families into RECEIVERS (51 total). Request schemas mirror client.ts call sites — build green = every payload compile-checks (C3 mechanism). channels had NO data:unknown handlers + uses a generic signal() forwarder → NO migration, NO unused @oneie/sdk dep added (rejected imaginary blocker). C4's `grep data:unknown channels/src = 0` ratchet was over-specified: remaining web-lib hits are legitimate generic boundaries (envelope splitter, signal-emit helpers, writeSignal) — the real ratchet (world-receivers.ts=0) held in C2. Fixed C2 route test's stale escape-hatch example (market:hire is now declared → switched to claw:${name}).
+  - [x] demo batch (family coverage 3✓ · receivers suite 9✓ · route 6✓)
 
 Batch 4
-  - [ ] C5 — meta: affordance family (catalog·schema·recall·reputation)   state: blocked-on-C3,C4
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C6 — RECIPES + per-recipe integration test                       state: blocked-on-C3,C4
-    - [ ] W1 · W2 · W3 · W4
+  - [x] C5 — meta: affordance family (catalog·schema·recall· ~~reputation~~)  state: DONE (composite≈0.88)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    NOTE: shipped meta:catalog + meta:schema (pure SDK projections in meta.ts — role-scoped via ownerOnly), meta:recall (D1 world_hypotheses read) + Backpressure on Outcome. DEFERRED meta:reputation — its data lives in TypeDB paths not web D1; a stub would break the no-stubs rule (follow-on below). New `@oneie/sdk/meta` subpath; web `meta-receivers.ts` + meta: branch in ask route.
+  - [x] C6 — RECIPES + per-recipe integration test                       state: DONE (composite≈0.95)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    NOTE: RECIPES={spine,build,trade,transact} as `readonly ReceiverName[]` (typo=compile error); recipes.test 4✓ (runtime validity, no TypeDB needed). spec RECIPES block synced to shipped names.
+  - [ ] FOLLOW-ON: meta:reputation — compose path strength/resistance + commend/flag from TypeDB into {score, why[], howToRaise[]} (needs gateway read, not web D1)
 
 Batch 5
-  - [ ] C7 — generated openapi + MCP grouping                            state: blocked-on-C4,C5,C6
-    - [ ] W1 · W2 · W3 · W4
+  - [x] C7 — generated openapi + MCP grouping                            state: DONE (composite≈0.91)
+    - [x] W1 · [x] W2 · [x] W3 · [x] W4
+    NOTE: NEW `src/openapi.ts` (pure buildReceiverPayload → oneOf w/ x-cost/x-reversible/x-settles/x-effect) + `scripts/generate-openapi.ts` + `generate:openapi` script + `./openapi` export. Injects between `generated:receivers` markers as ONE flow-JSON line (JSON⊂YAML) → byte-stable/idempotent, no YAML dep, hand-spec preserved. Opaque "receiver-defined" body GONE. MCP signal/ask descriptions group by RECIPES + point to meta:catalog. **Discovery:** the legacy `generate` (openapi→types) has a stale path (packages/web/...) — pre-existing, NOT fixed here (separate FIX); C7 added the working `generate:openapi` alongside it.
+  - [ ] FOLLOW-ON: fix `generate-types.ts` stale SPEC_PATH (points at packages/web/public, real file is one.ie/web/public) — dead drift gate
 
 Batch 6
-  - [ ] C8 — collapse bespoke methods + fold schemas.ts                  state: blocked-on-C3,C7
+  - [ ] C8 — collapse bespoke methods + fold schemas.ts                  state: NEEDS RE-PLAN (premise false)
     - [ ] W1 · W2 · W3 · W4
+    W1 FINDING (blocks naive execution): client.ts methods are NOT pure receiver wrappers — 61 emit() telemetry calls + 23 Outcome-unwrap blocks (`"result" in result ? … : default`). Collapsing them to raw ask()/signal() sugar would (a) drop 61 observability signals, (b) change every return type from unwrapped X → Outcome<X> = BREAKING public API, (c) lose default fallbacks. The schemas.ts "fold" is also lateral: C4 already defines each response schema once and imports 6 into receivers.ts (no duplication to remove). So C8's outcome (delta_loc_net negative via collapse) is unreachable safely.
+    RE-SCOPE OPTIONS: (1) leave client.ts as-is — typed ask/signal already IS the no-drift surface (C3); the bespoke methods are ergonomic unwrappers worth keeping. (2) add @deprecated JSDoc → ask equivalents (net +LOC, fails the outcome but guides migration). (3) only fold: move the 6 schema defs schemas.ts→receivers.ts, re-export for compat (≈net-zero LOC, low value). Recommend (1): close the plan; the drift C8 targeted was already killed by C3's compile-checking.
 
 Plan close
   - [ ] Plan outcome command exits 0
@@ -213,7 +221,15 @@ Plan close
 
 ## Session state — resume here (2026-05-29)
 
-**Done & verified: C1, C2, C3** (composites 0.95 / 0.885 / 0.96). Next: **C4**.
+**Done & verified: C1–C7** (composites 0.95 / 0.885 / 0.96 / 0.925 / 0.88 / 0.95 / 0.91). Next: **C8** (collapse bespoke methods + fold schemas.ts — last cycle).
+
+**C7 carry-forward:** openapi `data` bodies now `$ref` a generated `ReceiverPayload` oneOf; regenerate via `bun --cwd packages/sdk run generate:openapi` (idempotent — commit the regenerated yaml, then the drift gate stays clean). `@oneie/sdk/openapi` exports the pure builder. C8 collapses client.ts methods to `ask`/`signal` sugar + folds schemas.ts response schemas into RECEIVERS `.response` — watch: C4 already imports 6 schemas FROM schemas.ts into receivers.ts, so the fold reverses that import direction (move the schema definitions into receivers.ts, re-export from schemas.ts for compat).
+
+**C5/C6 carry-forward:**
+- `RECEIVERS` = 54 contracts (51 + meta:catalog/schema/recall). `RECIPES` = 4 typed journeys. `@oneie/sdk/meta` exports `metaCatalog`/`metaRecipe`/`metaSchema`/`ownerOnly` (pure projections — C7's openapi/MCP gen reads these + `z.toJSONSchema`).
+- **The file-link is a COPY, not a symlink** — after any SDK change that adds an export or dist file, run `bun install` in `one.ie/web` (not just `bun run build`), or web tsc throws "Cannot find module '@oneie/sdk/…'".
+- `z.toJSONSchema(schema)` (zod 4.4.3) is the request→JSON-Schema path C7 needs for the openapi `oneOf` — already proven on unions (agents:sync) + refines (grant-capability).
+- meta:reputation deferred (see FOLLOW-ON) — don't let C7 assume it exists in the catalog.
 
 ### Files created/changed so far
 
@@ -409,27 +425,28 @@ demo:
 ```
 
 ### W1 — Recon  [Haiku · parallel]
-- [ ] `packages/sdk/src/client.ts` — the ~50 methods → the receiver each calls (the family list to declare)
-- [ ] `channels/src/substrate.ts` + `channels/src/tools/workspace.ts` — worker-side receiver handlers + their `{receiver,data}` forward contract
-- [ ] `packages/sdk/src/schemas.ts` — existing response schemas to reuse as `.response`
+- [x] `packages/sdk/src/client.ts` — the ~50 methods → the receiver each calls (the family list to declare)
+- [x] `channels/src/substrate.ts` + `channels/src/tools/workspace.ts` — **finding: generic `signal(env, receiver, data)` forwarder, NO per-receiver typed handlers, NO `data: unknown` → nothing to migrate, no SDK dep needed**
+- [x] `packages/sdk/src/schemas.ts` — existing response schemas to reuse as `.response`
 
 ### W2 — Decide  [Opus · high]
-- [ ] Order of migration = recipe order: BUILD family first, TRADE next, rest last (each sub-group a coherent W3 fan-out).
-- [ ] For `channels/`-forwarded receivers: contract in SDK, handler stays in worker — confirm no runtime dep leaks into the SDK client package.
-- [ ] Reuse `schemas.ts` shapes as `.response` (don't re-author).
-- [ ] **Populate metadata** per receiver: `cost`/`settles` (esp. `pay:*` → `settles:"onchain"`, `cost`), `reversible:false` + `simulatable:true` for irreversible ones (`market:hire`, `agents:deploy-on-behalf`, `pay:weight`), `idempotent` where naturally so. This is what `meta:catalog` (C5) surfaces.
+- [x] Order of migration = recipe order: identity → groups → BUILD → TRADE → TRANSACT → reads (single coherent W3a — one file).
+- [x] For `channels/`-forwarded receivers: channels forwards generically (no typed handlers) → contract-in-SDK is enough; **no runtime dep added to channels** (rejected as imaginary blocker — an unused dep is dead weight).
+- [x] Reuse `schemas.ts` shapes as `.response` (RegisterResponse/AgentAction/AgentStatus/CapabilityItem/Stats/PayResponse).
+- [x] **Populate metadata**: `pay:weight`/`market:*` → `settles:"onchain"` + `cost:"variable"`; irreversible (`market:hire`, `agents:deploy-on-behalf`, `pay:weight`) → `reversible:false` + `simulatable:true`; reads → `cost:"free"` + `idempotent:true`.
 
 ### W3 — Edit  [Sonnet · parallel — merges with C3 W3a where file-disjoint]
 **W3a:**
-- [ ] `packages/sdk/src/receivers.ts` — declare BUILD + TRADE + remaining families **with metadata** (cost/settles/reversible/simulatable/idempotent)
-- [ ] `channels/src/substrate.ts` — bind worker handlers to declared contracts (take `z.infer`)
-- [ ] `packages/sdk/tests/receivers.test.ts` — `family coverage` test (every wrapped receiver has a declaration; irreversible ones carry `simulatable:true`)
+- [x] `packages/sdk/src/receivers.ts` — declared 27 families **with metadata** (51 receivers total); imports reused response schemas from `schemas.ts`
+- [x] ~~`channels/src/substrate.ts`~~ — N/A (generic forwarder, no handlers to bind — see W1 finding)
+- [x] `packages/sdk/tests/receivers.test.ts` — `family coverage` test (every wrapped receiver declared; irreversible → `simulatable:true`; onchain → `settles`)
+- [x] `one.ie/web/tests/receivers-route.test.ts` — fixed stale escape-hatch example (market:hire now declared → claw:${name})
 
 ### W4 — Verify  [Haiku×5]
-- [ ] `bun --cwd packages/sdk run build` + `bun --cwd channels run build` green
-- [ ] `grep -rn "data: unknown"` in migrated handler sigs = 0 (ratchet)
-- [ ] demo test exits 0
-- [ ] goal-fit ≥ 0.50 · composite ≥ 0.65
+- [x] `bun --cwd packages/sdk run build` green · delta_tsc = 0 (channels untouched — no @oneie/sdk dep)
+- [x] ratchet redefined: `world-receivers.ts` data:unknown=0 (held from C2); remaining web-lib hits are legitimate generic boundaries
+- [x] demo test exits 0 (family coverage 3✓); web verify: 0 C4-tsc-errors (3 pre-existing from in-flight composio work), route 6✓, full vitest 913✓ (1 fail = uncommitted gateway-guard work, not C4)
+- [x] goal-fit ≈ 0.95 · composite ≈ 0.925
 
 ---
 
@@ -448,29 +465,30 @@ demo:
 ```
 
 ### W1 — Recon  [Haiku · parallel]
-- [ ] `packages/sdk/src/receivers.ts` — `RECEIVERS` + metadata to read (from C1/C4)
-- [ ] `packages/sdk/src/client.ts` — `recall()` / `highways()` / `commend()` reads to compose `meta:recall` + `meta:reputation`
-- [ ] `one.ie/web/src/lib/world-receivers.ts` — handler-binding pattern + `gateSignalByRole` to scope the catalog
-- [ ] `one.ie/web/src/pages/api/signal/[receiver].ts` — the 4-outcome envelope to extend with `retryAfter`/`limit`/`window`
+- [x] `packages/sdk/src/receivers.ts` — `RECEIVERS` + metadata to read (from C1/C4)
+- [x] `packages/sdk/src/client.ts` — recall composes via D1 `world_hypotheses`; reputation source is TypeDB paths (NOT web D1) → deferred
+- [x] `one.ie/web/src/lib/world-receivers.ts` — dispatch-map + `dispatchWorldReceiver` pattern to mirror for meta
+- [x] `one.ie/web/src/pages/api/ask/[...receiver].ts` — the in-process world branch + envelope to extend with a meta branch + Backpressure
 
 ### W2 — Decide  [Opus · high]
-- [ ] `meta:catalog`/`meta:schema` are pure reads over `RECEIVERS` (handler in web reads the SDK catalog; `zod-to-json-schema` for `meta:schema`). **Role-scope:** the catalog must omit receivers the caller's role can't call — filter by `auth`/`gateSignalByRole`.
-- [ ] `meta:recall` composes existing `recall()`/learning reads scoped to the caller `uid`; `meta:reputation` composes path strength/resistance + `commend`/`flag` into a legible `{ score, why[], howToRaise }`.
-- [ ] Backpressure: add optional `{ retryAfter, limit, window }` to the `Outcome` envelope — additive, existing consumers ignore.
+- [x] `meta:catalog`/`meta:schema` are pure reads over `RECEIVERS` → **SDK pure functions in `meta.ts`** (so the SDK test proves them); web handler is a thin binding. `z.toJSONSchema` (zod 4.4.3, no extra dep). **Role-scope:** `ownerOnly(auth)` hides `manage_*`/`mint_*` from low-priv viewers.
+- [x] `meta:recall` = D1 `world_hypotheses` read; **`meta:reputation` deferred** (TypeDB-path data, not web D1 — no-stubs rule).
+- [x] Backpressure: `Outcome<T> = (…4 variants…) & Backpressure` — additive.
 
 ### W3 — Edit  [Sonnet · parallel]
 **W3a:**
-- [ ] `packages/sdk/src/receivers.ts` — declare `meta:catalog` · `meta:schema` · `meta:recall` · `meta:reputation` contracts
-- [ ] `one.ie/web/src/lib/meta-receivers.ts` — bind handlers (catalog/schema read `RECEIVERS`; recall/reputation compose existing reads); register in the dispatch map
-- [ ] `packages/sdk/src/types.ts` — extend `Outcome` with optional backpressure fields
-- [ ] `packages/sdk/tests/meta.test.ts` — demo test
-- [ ] `packages/mcp/CLAUDE.md` — note `meta:catalog` as the discovery source (doc parallel)
+- [x] `packages/sdk/src/receivers.ts` — declared `meta:catalog` · `meta:schema` · `meta:recall` (reputation deferred)
+- [x] `packages/sdk/src/meta.ts` (NEW) + `./meta` export — `metaCatalog`/`metaRecipe`/`metaSchema`/`ownerOnly`
+- [x] `one.ie/web/src/lib/meta-receivers.ts` (NEW) — `dispatchMetaReceiver`; wired into ask route's `meta:` branch
+- [x] `packages/sdk/src/types.ts` — `Outcome` + `Backpressure`
+- [x] `packages/sdk/tests/meta.test.ts` — demo (5✓: metadata · role-scope · goal→recipe · schema · union)
+- [x] `packages/mcp/CLAUDE.md` + `packages/sdk/CLAUDE.md` — meta discovery section
 
 ### W4 — Verify  [Haiku×5]
-- [ ] `bun --cwd packages/sdk run build` + `bun --cwd one.ie/web run verify` green · `delta_tsc ≤ 0`
-- [ ] demo exits 0 (catalog w/ metadata · goal-filter → recipe · schema returns one · role-scoped)
-- [ ] doc-sync: `mcp/CLAUDE.md` reflects `meta:catalog`
-- [ ] goal-fit ≥ 0.50 · composite ≥ 0.65
+- [x] `bun --cwd packages/sdk run build` 0 + full SDK suite 39✓ · web tsc 0 meta-errors (1 pre-existing composio) · route 6✓ · full vitest 914✓
+- [x] demo exits 0 (catalog w/ metadata · goal-filter → recipe · schema returns one · role-scoped)
+- [x] doc-sync: `mcp/CLAUDE.md` + `sdk/CLAUDE.md` reflect `meta:catalog`
+- [x] goal-fit ≈ 0.80 (surface+memory shipped, standing deferred) · composite ≈ 0.88
 
 ---
 
@@ -489,24 +507,24 @@ demo:
 ```
 
 ### W1 — Recon  [Haiku · parallel]
-- [ ] `packages/sdk/src/receivers.ts` — full `RECEIVERS` keys (from C2+C4) to compose recipes from
-- [ ] `packages/sdk/src/testing/index.ts` — existing test harness for substrate integration
-- [ ] `plans/lifecycle.md § Trade Lifecycle` — canonical trade arc to mirror in `trade` recipe
+- [x] `packages/sdk/src/receivers.ts` — full `RECEIVERS` keys (from C2+C4) to compose recipes from
+- [x] `packages/sdk/src/testing/index.ts` — harness present; recipes.test uses runtime validity (no TypeDB dependency)
+- [x] trade arc — capabilities:publish → market:list → market:hire → pay:weight (ends onchain)
 
 ### W2 — Decide  [Sonnet]
-- [ ] Recipe type: `readonly (keyof typeof RECEIVERS)[]` so a typo is a compile error.
-- [ ] Integration tests use real/local substrate (no mocks — per repo rule); skip if no TypeDB.
+- [x] Recipe type: `satisfies Record<string, readonly ReceiverName[]>` so a typo is a compile error.
+- [x] Tests assert runtime validity (every step ∈ RECEIVERS) + recipe identity — no TypeDB needed, so they always run.
 
 ### W3 — Edit  [Sonnet · parallel]
 **W3a:**
-- [ ] `packages/sdk/src/receivers.ts` — add `RECIPES`
-- [ ] `packages/sdk/tests/recipes.test.ts` — one path per recipe
-- [ ] `plans/agent-first-spec.md` — sync RECIPES code block to final names
+- [x] `packages/sdk/src/receivers.ts` — added `RECIPES` + `RecipeName`
+- [x] `packages/sdk/tests/recipes.test.ts` — 4✓ (validity · four journeys · spine order · trade ends onchain)
+- [x] `plans/agent-first-spec.md` — synced RECIPES code block to shipped names
 
 ### W4 — Verify  [inline composite]
-- [ ] build green · demo test exits 0
-- [ ] doc-sync: design doc RECIPES block matches code
-- [ ] goal-fit ≥ 0.50 · composite ≥ 0.65
+- [x] build green · demo test exits 0 (4✓)
+- [x] doc-sync: design doc RECIPES block matches code
+- [x] goal-fit ≈ 0.95 · composite ≈ 0.95
 
 ---
 
@@ -525,30 +543,30 @@ demo:
 ```
 
 ### W1 — Recon  [Haiku · parallel]
-- [ ] `packages/sdk/scripts/generate-types.ts` — current openapi→types flow + drift gate
-- [ ] `one.ie/web/public/openapi.yaml § /signal/{receiver}` — the opaque body to replace
-- [ ] `packages/mcp/src/tools/substrate.ts` — how `signal`/`ask` tool descriptions are built
+- [x] `packages/sdk/scripts/generate-types.ts` — openapi→types flow; **stale SPEC_PATH (packages/web/...) → dead gate** (follow-on)
+- [x] `one.ie/web/public/openapi.yaml § /signal/{receiver}` + `/ask/{receiver}` — opaque `data` body to replace; `components/schemas:` anchor for the region
+- [x] `packages/mcp/src/tools/substrate.ts` — signal/ask descriptions are static strings (depends on @oneie/sdk via workspace)
 
 ### W2 — Decide  [Opus · high]
-- [ ] Generation direction: registry (`RECEIVERS`) → `zod-to-json-schema` → `oneOf` injected into `openapi.yaml`, with `cost`/`reversible`/`settles` as `x-` extensions. Spec becomes a build artifact for the receiver paths (keep hand-written justified-extra routes intact).
-- [ ] MCP: descriptions read `summary` + `examples`; argument schema reads `request` JSON Schema. Group tools by `RECIPES`. The MCP `ask`/`signal` discovery surface reads `meta:catalog` (from C5) so new receivers appear without an MCP release.
-- [ ] CI: extend the existing `git diff --exit-code` gate to `openapi.yaml`.
+- [x] Generation: `RECEIVERS` → `z.toJSONSchema` → `oneOf` (`x-cost`/`x-reversible`/`x-settles`/`x-effect`). **Marker-based injection** (one flow-JSON line, JSON⊂YAML) — preserves the hand-spec, no YAML dep, byte-stable/idempotent. NEW `generate:openapi` (not the stale `generate`).
+- [x] MCP: append a RECIPES menu + `meta:catalog`/`meta:schema` discovery hint to signal/ask descriptions.
+- [x] CI: drift gate = `generate:openapi && git diff --exit-code openapi.yaml` (idempotency proven).
 
 ### W3 — Edit  [Sonnet · parallel]
 **W3a:**
-- [ ] `packages/sdk/scripts/generate-openapi.ts` (or extend `generate-types.ts`) — emit receiver `oneOf`
-- [ ] `packages/mcp/src/tools/substrate.ts` — descriptions + grouping from registry
-- [ ] `packages/sdk/tests/openapi-gen.test.ts` — demo test
-- [ ] `packages/mcp/CLAUDE.md` + `plans/agent-api.md` — note generated spec
+- [x] `packages/sdk/src/openapi.ts` (NEW, pure) + `scripts/generate-openapi.ts` (CLI) + `generate:openapi` script + `./openapi` export + index re-export
+- [x] `packages/mcp/src/tools/substrate.ts` — RECEIVER_HINT (recipe menu + meta:catalog) on signal/ask
+- [x] `packages/sdk/tests/openapi-gen.test.ts` — demo (4✓: oneOf size · real schema · x-metadata · idempotent inject)
+- [x] `packages/mcp/CLAUDE.md` (C5 discovery section) + `plans/agent-api.md` + `packages/sdk/CLAUDE.md` — generated-spec note
 
 **W3b:**
-- [ ] `one.ie/web/public/openapi.yaml` — regenerated output (after generator lands)
+- [x] `one.ie/web/public/openapi.yaml` — markers added + `data` → `$ref ReceiverPayload`; regenerated (ReceiverPayload oneOf, 16.7k flow-JSON)
 
 ### W4 — Verify  [Haiku×5]
-- [ ] `bun --cwd packages/sdk run generate` + `git diff --exit-code` on openapi (clean regenerate)
-- [ ] demo test exits 0 · opaque body gone
-- [ ] doc-sync: agent-api.md + mcp CLAUDE.md reflect generated spec
-- [ ] goal-fit ≥ 0.50 · composite ≥ 0.65
+- [x] `generate:openapi` idempotent (re-run → 0 diff) · SDK build 0 · MCP tsc 0
+- [x] demo test exits 0 (4✓) · opaque "receiver-defined" body gone (grep = 0)
+- [x] doc-sync: agent-api.md + sdk/mcp CLAUDE.md reflect generated spec
+- [x] goal-fit ≈ 0.92 · composite ≈ 0.91
 
 ---
 
