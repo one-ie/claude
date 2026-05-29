@@ -226,10 +226,15 @@ elegance: attribution is a recursive filter, not a pipeline, and "team" needed n
 The billing pages already exist (`/u/[slug]/billing*`, gated by `BillingNav.astro`); the owner
 already has `billing/platform.astro`. We **compose**, not rebuild:
 
-- **One new component** — `<CostTree>` (React island) renders the per-descendant rollup as a
-  nested table: agency → client → team, each row showing tokens, COGS, billed, and (for the parent)
-  margin earned. Built from the existing `ui/` primitives (`Card`, `Badge`, `Table`, dashboard
-  `RankedList`/`HeroNumber`) — no charting lib, matching `platform.astro`'s hand-rolled tables.
+- **One purpose-built component** — `<CostTree>` (React island), *not* a fork of `ClientsTable`. It
+  answers one question — *"what's costing me, and where is it coming from?"* — on two axes at once:
+  - **Who** (primary): a nested, expandable tree — agency → client → team — each row showing
+    tokens, COGS, billed, and (for a parent) margin earned.
+  - **What** (on expand): the model · reason breakdown for that workspace (inference / tool / voice).
+  - A **summary band** on top (`HeroNumber` total + `RankedList` top cost sources) gives the answer
+    at a glance before any drill-down.
+  It's a new file but *composes* the existing `ui/` primitives (`Card`, `Badge`, `Table`, `Icon`) and
+  dashboard cards (`RankedList`, `HeroNumber`) — no charting lib, matching `platform.astro`'s idiom.
 - **Slot it into the billing pages by viewer:**
 
   | Route | Viewer | `:root` | What `<CostTree>` shows |

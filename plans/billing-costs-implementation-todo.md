@@ -425,13 +425,13 @@ demo:
 
 ## C5 — Surface costs to the UI  [tier: complex · batch: 3]
 
-**Goal delta:** after this closes, each of the four audiences SEES their subtree's cost in the billing UI — owner the whole tree, agency clients→teams, client its teams, team itself — composed from the C4 API into the billing pages that already exist.
+**Goal delta:** after this closes, each of the four audiences SEES where their costs come from — owner across the whole tree, agency across clients→teams, client across its teams, team itself — rendered elegantly from the C4 API. The question every audience asks is *"what's costing me, and where is it coming from?"*; this answers it on two axes at once: **who** (descendant: agency→client→team) and **what** (model · reason: inference / tool / voice).
 
-**Deliverable:** `web/src/components/billing/CostTree.tsx` + route `/u/[slug]/billing/costs` + recursive extension of `billing/platform.astro`.
+**Deliverable:** `web/src/components/billing/CostTree.tsx` (purpose-built, NOT a fork of `ClientsTable`) + route `/u/[slug]/billing/costs` + recursive extension of `billing/platform.astro`.
 
-**UX delta:** the cost numbers stop being API-only — they render, gated to the viewer's subtree, nested agency→client→team.
+**UX delta:** the cost numbers stop being API-only — they render as a clear cost-attribution view: a nested who-spent tree you can drill into a what-spent breakdown, gated to the viewer's subtree.
 
-**Cycle outcome:** `bun vitest run tests/billing/costtree.test.tsx` — `<CostTree>` given a nested rollup renders one row per descendant nested by `parent_slug`, totals match the API, and a leaf (team) renders its own breakdown with no children.
+**Cycle outcome:** `bun vitest run tests/billing/costtree.test.tsx` — `<CostTree>` given a nested rollup renders one row per descendant nested by `parent_slug`, expanding a descendant reveals its model/reason breakdown, totals match the API, and a leaf (team) renders its own breakdown with no children.
 
 **Contributes to plan outcome:** yes.
 
@@ -439,7 +439,7 @@ demo:
 ```yaml
 demo:
   command: "cd one.ie/web && bun vitest run tests/billing/costtree.test.tsx"
-  asserts: "CostTree nests descendants by parent_slug, totals reconcile, leaf shows own breakdown"
+  asserts: "CostTree nests descendants by parent_slug, expand reveals model/reason breakdown, totals reconcile, leaf shows own breakdown"
   budget:  "<2s wall · <120 LOC test"
 ```
 
@@ -456,9 +456,10 @@ demo:
 
 ### W2 — Decide  [Opus · high]
 
-- [ ] **Compose-or-construct verdict:** is `<CostTree>` a new file or an extension of `org/ClientsTable.tsx`? Fill the verdict table — closest match `ClientsTable` does `{what}`, lacks nested-by-`parent_slug` + cost columns. Default: compose into / extend it; new file only if the nesting diverges materially.
-- [ ] **Slot map:** which `ui/` + `dashboard/` primitives fill which slot (table rows, totals card, margin badge).
-- [ ] Route shape: `billing/costs.astro` serving agency + client (viewer-driven `root`); owner stays on extended `platform.astro`. Confirm `BillingNav` gating per viewer (owner/agency/client see costs; team sees own pool).
+- [ ] **Compose-or-construct verdict — LOCKED: new component.** `<CostTree>` is purpose-built, not a fork of `org/ClientsTable.tsx`. Justification: `ClientsTable` is a flat client roster; the cost view is a two-axis attribution surface (recursive who-nesting × model/reason drill-down × margin) — forking it would distort both. It still **composes** `ui/` primitives (`Card`, `Badge`, `Table`, `Icon`) and `dashboard/` cards (`RankedList`, `HeroNumber`) for its internals — new ≠ from-scratch. Reuse audit holds it to that.
+- [ ] **Visual design (elegance is the point):** decide the two-axis layout — primary axis = the **who** tree (agency → client → team, indented/expandable by `parent_slug`); secondary axis = the **what** breakdown (model · reason) revealed on row expand. A summary band up top (`HeroNumber` total spend + `RankedList` top-3 cost sources) answers "what's costing us?" at a glance before any drill-down. No charting lib — Tailwind + the existing primitives, matching `platform.astro`'s table idiom.
+- [ ] **Slot map:** which `ui/` + `dashboard/` primitive fills which slot (tree rows, expand panel, totals band, margin/COGS badge).
+- [ ] Route shape: `billing/costs.astro` serving agency + client (viewer-driven `root`); owner stays on extended `platform.astro`, reusing `<CostTree>`. Confirm `BillingNav` gating per viewer (owner/agency/client see costs; team sees own pool).
 - [ ] Doc-plan: `one.ie/web/src/components/CLAUDE.md` (new island) + any `README` route row.
 
 ### W3 — Edit  [Sonnet · parallel]
@@ -477,7 +478,7 @@ demo:
 - [ ] `bun run verify` green
 - [ ] `delta_tsc_errors ≤ 0`
 - [ ] `tests/billing/costtree.test.tsx` exits 0
-- [ ] Reuse audit: `<CostTree>` imports `ui/` primitives (grep); no recharts; no new tenant-table reimplementation if `ClientsTable` was extensible
+- [ ] Reuse audit: `<CostTree>` is a new component but composes `ui/` + `dashboard/` primitives (grep imports); no recharts; no re-implemented `Card`/`Badge`/`Table`/list primitive inside it
 - [ ] **Live verification** (deploy surface — astro pages + `api/billing/*`): `curl` `/u/<slug>/billing/costs` returns 2xx for owner/agency/client, redirect/403 for a sibling
 - [ ] deliverable shipped + ux delta observable (screenshot path of the nested tree) · plan outcome re-check
 - [ ] goal-fit ≥ 0.50 (hard) · composite ≥ 0.65

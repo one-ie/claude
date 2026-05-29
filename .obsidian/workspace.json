@@ -41,12 +41,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "plans/billing-costs.md",
+                "file": "plans/billing-software.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "billing-costs"
+              "title": "billing-software"
             }
           },
           {
@@ -121,7 +121,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 246.5
+    "width": 328.5
   },
   "right": {
     "id": "1e8c77207ede8fa9",
@@ -228,8 +228,10 @@
   },
   "active": "076af8a2e63d7a30",
   "lastOpenFiles": [
-    "one.ie/web/tests/e2e/permissions/c12-drill.test.tsx",
     "plans/billing-costs-implementation-todo.md",
+    "plans/billing-software.md",
+    "plans/billing-costs.md",
+    "one.ie/web/tests/e2e/permissions/c12-drill.test.tsx",
     "one.ie/web/tests/e2e/permissions/c11-actas-scope.test.tsx",
     "plans/billing-costs-implementation.md",
     "one.ie/web/src/components/sidebar/CLAUDE.md",
@@ -243,7 +245,6 @@
     "one.ie/web/src/lib/authority.ts",
     "one.ie/web/tests/e2e/permissions/c8-activegroup.test.ts",
     "plans/invitations.md",
-    "one.ie/web/src/pages/api/groups/active.ts",
     "one.ie/web/src/components/groups/CLAUDE.md",
     "plans/learnings.md",
     "plans/roles-optimisation-todo.md",
@@ -263,7 +264,6 @@
     "api/node_modules/fdir/README.md",
     "api/node_modules/convert-source-map/README.md",
     "api/node_modules/estree-walker/README.md",
-    "api/node_modules/chai/README.md",
     "one.ie/web/dist/client/oo-logo-square.svg",
     "one.ie/web/dist/client/og-image.jpg",
     "one.ie/web/dist/client/logos/woocommerce.svg",
