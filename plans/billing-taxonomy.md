@@ -242,3 +242,22 @@ Agencies create named plan configs that inherit from a base tier and override sp
 - `AgencyPlansManager.tsx` — plan dropdown gains template entries with "Custom" badge
 
 **Open gaps:** migration 0071, `mergeBilling()` template resolution, `GET/POST /api/billing/plan-templates` routes, `PlanTemplateEditor.tsx`
+
+---
+
+## Billing software schema — migrations 0076–0081 (billing-software-todo C1)
+
+The complete-system build (invoices, coupons, entitlements, tiered rates, grant FIFO, subscription
+lifecycle) adds these tables/columns. All idempotent on a fresh DB.
+
+| Migration | Adds | Columns of note |
+|-----------|------|-----------------|
+| `0076_invoices.sql` | `invoices` + `invoice_line_items` | `idempotency_key` UNIQUE = `{ws}:{period_start}:{period_end}`; `billing_sequence` assigned only at finalize; `pdf_url`/`pdf_generated_at` for C8 |
+| `0077_coupons.sql` | `coupons` + `coupon_redemptions` | `discount_type` (percentage\|fixed_credits); `cadence` (once\|repeating\|forever); `redemptions` counter |
+| `0078_entitlements.sql` | `entitlements` + `meters` | `entitlements.usage_limit`/`used`/`is_soft_limit` (numeric gate limits); `meters.aggregation` JSON (MeterAggregation) |
+| `0079_pricing_tiers.sql` | `pricing_tiers` | `tiers` JSON PriceTier[]; `metadata` holds C9 plan-template defs; UNIQUE(workspace, feature, COALESCE(model,'')) |
+| `0080_grants.sql` | ALTER `credit_grants` | `priority`, `conversion_rate`, `topup_conversion_rate` — `expires_at` already existed (0016) |
+| `0081_subscriptions.sql` | ALTER `owners` | `billing_anchor` (mode, vs existing `billing_anchor_day`), `trial_start/end`, `cancel_at`, `cancel_at_period_end`, `pause_status`, `collection_method`, `net_terms_days` |
+
+**Reads:** `src/lib/billing/{grant,burn,gate,invoice}.ts` (the policy layer) over `src/lib/billing.ts`
+(`computeBurn`/`debitPool`/`creditPool`, never reimplemented). All use `env.DB` against the `one-owners` D1.
