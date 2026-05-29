@@ -8,7 +8,7 @@ tags: [composio, integrations, chat, agents, skills, tools]
 
 # ─── GOAL CONTRACT ───────────────────────────────────────────────────
 goal: "Every Composio toolkit a user has connected is callable in chat and by agents with scoped, discoverable access — agents see only their declared toolkits, chat surfaces a connect card when a capability is missing, and a connection can be verified as actually working."
-outcome: "test -f one.ie/web/src/pages/api/composio/verify.ts && test -f one.ie/web/src/pages/api/composio/connections.ts && grep -q '\"connect\"' one.ie/web/src/lib/cards.ts && grep -q 'integrations' channels/src/personas.ts && (cd one.ie/web && bun run verify)"
+outcome: "test -f one.ie/web/src/pages/api/composio/verify.ts && test -f one.ie/web/src/pages/api/composio/connections.ts && grep -q \"'connect'\" one.ie/web/src/lib/cards.ts && grep -q 'integrations' channels/src/personas.ts && (cd one.ie/web && bun run verify)"
 outcome_asserts: "verify + connections endpoints exist, the connect card kind is defined, personas declare integrations, and the web package typechecks + tests green."
 
 deliverables:
@@ -80,7 +80,7 @@ Every Composio toolkit a user has connected is callable in chat and by agents wi
 ```bash
 test -f one.ie/web/src/pages/api/composio/verify.ts && \
 test -f one.ie/web/src/pages/api/composio/connections.ts && \
-grep -q '"connect"' one.ie/web/src/lib/cards.ts && \
+grep -q "'connect'" one.ie/web/src/lib/cards.ts && \
 grep -q "integrations" channels/src/personas.ts && \
 (cd one.ie/web && bun run verify)
 ```
@@ -257,7 +257,7 @@ Plan close
 
 **Cycle outcome:** `bun vitest run tests/e2e/composio-connect-card.test.ts` passes — a `connect` CardData renders a button whose href is the `connectUrl`.
 
-**Contributes to plan outcome:** yes (`grep '"connect"' cards.ts`).
+**Contributes to plan outcome:** yes (`grep "'connect'" cards.ts`).
 
 ```yaml
 demo:

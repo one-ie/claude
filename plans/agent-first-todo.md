@@ -221,7 +221,7 @@ Plan close
 
 ## Session state — resume here (2026-05-29)
 
-**Done & verified: C1–C7** (composites 0.95 / 0.885 / 0.96 / 0.925 / 0.88 / 0.95 / 0.91). Next: **C8** (collapse bespoke methods + fold schemas.ts — last cycle).
+**Done & verified: C1–C7** (composites 0.95 / 0.885 / 0.96 / 0.925 / 0.88 / 0.95 / 0.91). **Shipped live 2026-05-29** → one-prod version `338120ad` (https://one.ie): prod openapi.yaml carries the generated `ReceiverPayload` oneOf (opaque body gone); `meta:` route deployed (403 = gateway-gated, as designed). Commits — packages `5f1b382`+`260c27c` · one.ie `366f724a` · root `059846f`. Next: **C8** (deferred — see NEEDS RE-PLAN below).
 
 **C7 carry-forward:** openapi `data` bodies now `$ref` a generated `ReceiverPayload` oneOf; regenerate via `bun --cwd packages/sdk run generate:openapi` (idempotent — commit the regenerated yaml, then the drift gate stays clean). `@oneie/sdk/openapi` exports the pure builder. C8 collapses client.ts methods to `ask`/`signal` sugar + folds schemas.ts response schemas into RECEIVERS `.response` — watch: C4 already imports 6 schemas FROM schemas.ts into receivers.ts, so the fold reverses that import direction (move the schema definitions into receivers.ts, re-export from schemas.ts for compat).
 
