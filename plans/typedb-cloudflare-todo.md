@@ -514,6 +514,23 @@ Plan close
   - [ ] Plan rubric ≥ 0.65 (code rubric clears; goal-fit gated on live proof)
 ```
 
+## Deploy status (2026-05-29)
+
+**Deployed live:** `api` (one-gateway — BrainDO active, `/brain/*` auth-enforced, `/ws` 426),
+`one.ie` (one-prod, healthy 200), `channels`. `packages/sdk` pushed.
+**Held:** `sync` (C5) — pending `SYNC_SECRET`+`APP_URL` on the gateway (below).
+
+Incident + fix: the first web deploy 500'd worker-wide — `substrate.ts` imported the
+`@oneie/sdk` barrel, which pulls telemetry's global-scope random session-id init (forbidden
+in Workers). Rolled back one-prod, switched to the `@oneie/sdk/brain` subpath (+ added the
+export to `packages/sdk/package.json`), redeployed green. Always use SDK subpaths in Workers.
+
+**Remaining for the operator:**
+1. `cd channels && wrangler secret put GATEWAY_API_KEY` — enables the BrainDO toxic fast-path
+   (currently falls back to KV/TypeDB, which is fine).
+2. Gateway secrets for C5, then deploy sync (see below).
+3. Run the authed `/brain` smoke test with the real `GATEWAY_API_KEY` to flip the plan outcome.
+
 ## Deploy + verify handoff (the one gated step)
 
 The build is complete and locally verified. The plan outcome curls live production, so the
