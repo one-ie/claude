@@ -229,6 +229,33 @@ acme (parent)
   └── acme-engineering (child) — can read acme highways, can't signal acme-marketing directly
 ```
 
+**Multi-level rollup — `descendants-of()`.** An agency/parent sees not just
+direct children but *all* transitive descendants. Two mirrored recursive
+functions in `schema/one.tql` express the walk:
+
+```tql
+fun ancestors-of($g: group)   -> { group }  # every group above $g
+fun descendants-of($g: group) -> { group }  # every group below $g (grandchildren incl.)
+```
+
+The middleware pre-resolves the descendant slug set per request via a D1
+recursive CTE (kept off the TypeDB hot path) and hands it to `scopeToGroup`,
+which is what lets an `agency` viewer's reads span the whole sub-tree.
+
+**Scope enforcement is at TypeDB, not a comment (C0).** `scopeToGroup` in
+`web/src/lib/in/scope.ts` emits a TypeQL pattern that joins the bound actor
+variable through `membership` to the in-scope group gids
+(`(group: $__sg, member: $a) isa membership`). The `/api/export/*` routes
+splice this into their `match` clause directly — a sibling sub-group `viewer`
+reads **0 rows** from siblings because the database rejects the join, not
+because a gateway honoured a `/* scope */` comment. `group` is keyed by `gid`
+(`group:<slug>`); it has no `slug` attribute.
+
+**Frontiers is scope-attribute filtered, not group filtered.** A `hypothesis`
+has no relation to a `group` — only a `scope` attribute. `/api/frontiers`
+therefore returns `scope "public"` hypotheses only; own-group/private
+hypothesis discovery is deferred until a hypothesis↔group linkage exists.
+
 ### 3. Bridge paths (explicit, cross-root)
 
 Two tenants want to cooperate? Create a typed `path` between specific actors.

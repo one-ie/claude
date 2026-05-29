@@ -166,3 +166,15 @@
 
 ## 2026-05-28T14:07:21Z
 - **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-28T16:24:57Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-28T16:34:16Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-28T16:34:49Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-28T16:39:57Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.

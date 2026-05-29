@@ -715,6 +715,23 @@ Until it ships, attribution is workspace-level only.
 
 ---
 
+## 16b. Member write paths (roles-optimisation)
+
+The members panel (`/in/[groupId]/members`) is the operator surface for these.
+All share the extracted `hasAuthorityOver` (`lib/authority.ts`) authority walk
+and the shared `ROLE_ORDER` / `canGrantRole` escalation guard (`lib/role-check.ts`).
+
+| Op | Endpoint / SDK | Guard |
+|----|----------------|-------|
+| Change role | `PUT /api/groups/members {gid,aid,role}` · `SubstrateClient.changeRole` | `change_role` + authority + `canGrantRole` (cannot raise to ≥ own rank, same-workspace). Delete+reinsert (no UPDATE for owned attrs). |
+| Remove member | `DELETE /api/groups/members {gid,aid}` · `removeMember` | `change_role` + authority + `canRemoveMember` (sole owner cannot be removed → 409). |
+| Add to team | `MembersPanel` add-form → `POST /api/invites/create {gid,email,role}` | default `viewer`; reuses the invite escalation guard. |
+| Provision client | `provisionClient({name,handle,parentGid,inviteEmail})` → `POST /api/groups` | one call → child group + hierarchy edge + admin seed + invite. |
+| Create sub-group | `createGroup({...,parentGid})` | server honours `group-type` (C9); team requires a parent. |
+| Delegate act-as | panel delegate toggle → `POST /api/signal/grant-capability {grantee,actions:["act_as"],scope:gid,...}` | `mint_capability` (owner). Scoped + expiring. Caveat: grantee must have the scope group active for the grant to fold (see `auth.md §4c`). |
+
+Friendly labels (`member`→"Editor") are applied client-side via `lib/role-labels.ts`; the substrate value is never changed.
+
 ## 17. Known Gaps
 
 These are architectural holes, not bugs. Tracked here until resolved.

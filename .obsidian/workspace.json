@@ -1,0 +1,278 @@
+{
+  "main": {
+    "id": "16159afda6c29ff0",
+    "type": "split",
+    "children": [
+      {
+        "id": "229d5d9d420fd296",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "fe8b8547a5c2028e",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "plans/0-get ready for production.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "0-get ready for production"
+            }
+          },
+          {
+            "id": "124b3e2a81adc577",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "plans/billing-products.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "billing-products"
+            }
+          },
+          {
+            "id": "076af8a2e63d7a30",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "plans/billing-costs.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "billing-costs"
+            }
+          },
+          {
+            "id": "af3b8470de64d8f2",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "plans/typedb-cloudflare.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "typedb-cloudflare"
+            }
+          }
+        ],
+        "currentTab": 2
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "2e5496c18ba91a60",
+    "type": "split",
+    "children": [
+      {
+        "id": "29ae1a49f21261ae",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f8a41415a55992ef",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "fd459b29f48f2abb",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "70b12959ddfb5efd",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 246.5
+  },
+  "right": {
+    "id": "1e8c77207ede8fa9",
+    "type": "split",
+    "children": [
+      {
+        "id": "375994415c38fe3b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "dd6ead200f5fd0cb",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "plans/agent.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for agent"
+            }
+          },
+          {
+            "id": "4f5a219a9c815c1f",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "plans/agent.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from agent"
+            }
+          },
+          {
+            "id": "e3bd9b8e605aa94e",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "09eae730d9cb9110",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "c69e5c7cd5eec998",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "plans/agent.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of agent"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "076af8a2e63d7a30",
+  "lastOpenFiles": [
+    "one.ie/web/tests/e2e/permissions/c12-drill.test.tsx",
+    "plans/billing-costs-implementation-todo.md",
+    "one.ie/web/tests/e2e/permissions/c11-actas-scope.test.tsx",
+    "plans/billing-costs-implementation.md",
+    "one.ie/web/src/components/sidebar/CLAUDE.md",
+    "one.ie/web/tests/e2e/permissions/c10-tree.test.tsx",
+    "one.ie/web/tests/e2e/permissions/sibling-isolation.test.ts",
+    "one.ie/web/tests/e2e/permissions/c7-delegate.test.tsx",
+    "one.ie/web/tests/e2e/permissions/c3-remove.test.ts",
+    "plans/billing-products.md",
+    "packages/sdk/__tests__/group-ops.test.ts",
+    "one.ie/web/tests/e2e/permissions/c2-changerole.test.ts",
+    "one.ie/web/src/lib/authority.ts",
+    "one.ie/web/tests/e2e/permissions/c8-activegroup.test.ts",
+    "plans/invitations.md",
+    "one.ie/web/src/pages/api/groups/active.ts",
+    "one.ie/web/src/components/groups/CLAUDE.md",
+    "plans/learnings.md",
+    "plans/roles-optimisation-todo.md",
+    "api/node_modules/@oxc-project/types/README.md",
+    "api/node_modules/@rolldown/binding-darwin-arm64/README.md",
+    "api/node_modules/@rolldown/pluginutils/README.md",
+    "api/node_modules/source-map-js/README.md",
+    "api/node_modules/picocolors/README.md",
+    "api/node_modules/nanoid/README.md",
+    "api/node_modules/lightningcss-darwin-arm64/README.md",
+    "api/node_modules/assertion-error/README.md",
+    "api/node_modules/stackback/README.md",
+    "api/node_modules/siginfo/README.md",
+    "api/node_modules/rolldown/README.md",
+    "api/node_modules/postcss/README.md",
+    "api/node_modules/lightningcss/README.md",
+    "api/node_modules/fdir/README.md",
+    "api/node_modules/convert-source-map/README.md",
+    "api/node_modules/estree-walker/README.md",
+    "api/node_modules/chai/README.md",
+    "one.ie/web/dist/client/oo-logo-square.svg",
+    "one.ie/web/dist/client/og-image.jpg",
+    "one.ie/web/dist/client/logos/woocommerce.svg",
+    "one.ie/web/dist/client/logos/webflow.svg",
+    "one.ie/web/dist/client/logos/stripe.svg",
+    "one.ie/web/dist/client/logos/shopify.svg",
+    "one.ie/web/dist/client/logos/prestashop.svg",
+    "one.ie/web/dist/client/logos/openai.svg",
+    "one.ie/web/dist/client/logos/one.svg",
+    "one.ie/web/dist/client/logos/mistral.svg"
+  ]
+}

@@ -174,6 +174,21 @@ export const POST: APIRoute = async ({ request }) => {
 
 The 30-route sweep is a grep-and-replace. Picking the right `RoleAction` per route is the only thinking.
 
+#### Active group — the write path (C8)
+
+`Principal.group.gid` is `session.user.activeGroupId ?? personalGroupOf(slug)`.
+Reads scope by the URL; **writes** authorize by `activeGroupId`. If nothing
+writes `activeGroupId` after login, "switch to Marketing" moves the URL but a
+write still resolves your role in the login group — the read/write split.
+
+`POST /api/groups/active { gid }` closes it: it is **membership-gated**
+(`decideActiveSwitch` — staff may switch anywhere, your personal group is always
+allowed, otherwise a membership/ancestor-authority row must exist; fails closed),
+then writes `active_group_id` on the D1 `user` row. `GroupSwitcher.navigate()`
+calls it before redirecting, so read-context (URL) and write-context
+(`activeGroupId`) always agree. `capabilities` fold against `activeGroupId` too,
+so this also fixes the act-as scope caveat (C7).
+
 ### 4d. Action namespace — frozen at 28 actions, snake_case
 
 The vocabulary is finite, queryable, and audited. Each `RoleAction` is a snake_case `verb_resource` literal. **22 inherited verbatim** from `apps/dev.one.ie/src/lib/role-check.ts:1-22`; **6 added** for new surfaces this plan introduces.

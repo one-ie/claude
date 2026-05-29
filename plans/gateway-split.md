@@ -29,9 +29,11 @@ binding = "UPSTREAM"
 service  = "one-prod"   # one.ie's worker name
 ```
 
-`env.UPSTREAM.fetch(request)` is an in-process call — no network, no latency, no secret. `one-prod`'s substrate routes become unreachable from the public internet by construction (CF enforces this). This is the right first implementation, not a future upgrade.
+`env.UPSTREAM.fetch(request)` is an in-process call — no network, no latency. This is the right first implementation, not a future upgrade.
 
 Both workers are already in the same Cloudflare account. Service Bindings are available today.
+
+> **As-built correction (2026-05-29).** A Service Binding does **not** make `one-prod`'s routes unreachable — `one-prod` still serves the `one.ie` custom domain, and its own frontend calls those substrate routes same-origin (57 call sites). So the lockdown is a separate **app-layer guard** (`one.ie/web/src/lib/gateway-guard.ts`), gated by the `GATEWAY_SERVICE_SECRET` secret set on both workers. Once armed it allows a request that has the matching `X-Gateway-Key` (injected by the binding) **or** an `Origin`/`Referer` of `*.one.ie` **or** any `Authorization` header (the route's own auth still validates it); it 403s only anonymous foreign-origin hits. `Origin`/`Referer` are forgeable, so this is a **deterrent layered on the existing per-route auth** (`SERVER_SECRET`, role gates), not a hard wall. A true wall needs the full client reroute (see "Deferred" below). Rollback is one command: `wrangler secret delete GATEWAY_SERVICE_SECRET --name one-prod`.
 
 ---
 
@@ -85,8 +87,8 @@ C2 guard on `one.ie/api/signal` with no `GATEWAY_SERVICE_SECRET` set → guard i
 
 These run at the gateway before forwarding. `one-prod` never sees them directly.
 
-- **Auth** — `Authorization: Bearer <api-key>` validated against `world_keys` D1 table or `GATEWAY_API_KEY` env var. Invalid → `401` before forwarding.
-- **Rate limiting** — CF rate-limit binding: 600 req/min per key, burst 1200/min. Exceeded → `429` before forwarding.
+- **Auth** — *as-built (2026-05-29): NOT implemented at the gateway.* The gateway is transport-only: it forwards the caller's `Authorization` intact and lets `one-prod` own auth (`SERVER_SECRET`, role gates). It was deliberately left ungated so the unauthenticated public verbs (`select`/`follow`/`sub`) keep working through `api.one.ie`. The *planned* design below is deferred. *(planned)* `Authorization: Bearer <api-key>` validated against `world_keys` D1 / `GATEWAY_API_KEY`, invalid → `401` before forwarding.
+- **Rate limiting** — *deferred (not implemented).* CF rate-limit binding: 600 req/min per key, burst 1200/min. Exceeded → `429` before forwarding.
 - **CORS** — `one.ie`, `pay.one.ie`, `localhost` allowed; third-party origins allowed with valid key.
 - **Versioning** — `Accept: application/vnd.one.v1+json` passed through; future `v2` forks here without touching `one-prod`.
 
@@ -139,7 +141,7 @@ Four `one.ie` components currently fetch payment routes directly. After C3a thes
 
 ## Decisions locked
 
-1. CF Service Binding, not HTTP proxy — no latency, no secret, `one-prod` substrate routes unreachable from internet.
+1. CF Service Binding, not HTTP proxy — no latency. (Correction: the binding alone does NOT make `one-prod` unreachable — that's done by the app-layer `gateway-guard` + `GATEWAY_SERVICE_SECRET`, an origin-allow *deterrent* over the existing per-route auth. See the as-built note under "Why Service Bindings".)
 2. Guard deploys before gateway opens — batch order is `[C2+C4] → [C1] → [C3a] → [C3b]`.
 3. Stripe webhook requires dual-registration drain — never delete old URL before Stripe confirms zero traffic.
 4. `mark(weight+currency)` is substrate not payment — stays on `api.one.ie`.

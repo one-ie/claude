@@ -6,7 +6,10 @@ tier: simple
 mode: construction
 tags: [api, gateway, payments, sdk, infra]
 
-goal: "A developer calling @oneie/sdk hits api.one.ie for all 14 substrate ops via CF Service Binding — zero extra network hop, one.ie substrate routes unreachable from the internet, pay.one.ie owns all payment infrastructure."
+# As-built wording (2026-05-29). Original goal claimed "unreachable from the internet" (delivered as a
+# deterrent, not a hard wall) and "pay.one.ie owns all payment infrastructure" (deferred — C3 halted).
+goal: "A developer calling @oneie/sdk hits api.one.ie for all 14 substrate ops via CF Service Binding (zero extra network hop), and direct anonymous foreign access to one.ie's substrate routes is blocked by an origin-allow guard layered over the existing per-route auth. DEFERRED: a true network-level wall (full client reroute) and the pay.one.ie payment migration (C3)."
+goal_delivered: "C1 (Service Binding, 14 ops) + C2 (origin-allow guard, armed) + C4 (CLI default → api.one.ie) shipped & live. NOT delivered: hard 'unreachable' wall (deterrent only — Origin/Referer forgeable) and the pay.one.ie payments migration (C3a/C3b halted at survey)."
 # Corrected 2026-05-28: prod `signal` requires SERVER_SECRET (unauthenticated → 401), so the original
 # signal-based assertion was unsatisfiable. The public `select` verb proves the forward without auth.
 outcome: "curl -sf 'https://api.one.ie/select?tag=skill' | jq -e 'has(\"target\") and has(\"strength\")'"
