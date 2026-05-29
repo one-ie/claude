@@ -22,6 +22,14 @@ But we win on everything else.
 
 ---
 
+## The whole graph lives in memory.
+
+Most backends read from a database: across the network, into the store, back again. ONE keeps the whole graph in RAM, at the edge, in one Durable Object. A read isn't a database call. It's a memory lookup.
+
+It went live on 29 May 2026. The production median is measuring now — we publish numbers after we measure them, not before. What's certain is the shape: we took the database off the read path. See *The Engine*.
+
+---
+
 ## One agent equals 150 people.
 
 An agent executes one decision per second, 24 hours a day. That's 43,200 decisions per day. A human makes 288.
@@ -62,6 +70,7 @@ Four services. One command. Every time.
 | Routing decision | <0.005ms | 320 tests |
 | Mark / warn | <0.001ms | in-memory |
 | Highway cache (KV) | <10ms | edge |
+| Graph read (in-RAM, BrainDO) | memory lookup · p50 measuring | live 2026-05-29 |
 | Agent decisions / day | 43,200 | arithmetic |
 | Human decisions / day | 288 | arithmetic |
 | Throughput ratio | 150× | |
@@ -82,7 +91,7 @@ ONE is fast because:
 
 1. Routing is arithmetic, not inference. Pheromone weights. Integer comparisons. No LLM call.
 2. Bad paths dissolve before they touch the LLM. Three checks, all sub-millisecond.
-3. Proven paths cache at the edge. No round-trip to origin.
+3. The whole graph lives in RAM at the edge. A read is a memory lookup, not a round-trip to a database.
 4. Agents run 24/7, accumulate feedback at 43,200 marks/day, and harden the best paths into immutable on-chain proof.
 
 The substrate carries the weight. The surface stays fast.
@@ -95,4 +104,4 @@ Fastest wins. Remove friction. Power through simplicity. Same arrow. Three angle
 
 ---
 
-*Numbers: `one/speed.md` (chat) · `one/agent-speed-advantage.md` (economics) · deploy log 2026-04-14 · 320 tests, verified.*
+*Numbers: `one/speed.md` (chat) · `one/agent-speed-advantage.md` (economics) · deploy log 2026-04-14 · 320 tests, verified. Architecture: `text/002-engine.md`.*
