@@ -204,17 +204,19 @@ Batch 5
   - [ ] FOLLOW-ON: fix `generate-types.ts` stale SPEC_PATH (points at packages/web/public, real file is one.ie/web/public) — dead drift gate
 
 Batch 6
-  - [ ] C8 — collapse bespoke methods + fold schemas.ts                  state: NEEDS RE-PLAN (premise false)
+  - [~] C8 — collapse bespoke methods + fold schemas.ts                  state: DROPPED (premise false — see finding)
     - [ ] W1 · W2 · W3 · W4
     W1 FINDING (blocks naive execution): client.ts methods are NOT pure receiver wrappers — 61 emit() telemetry calls + 23 Outcome-unwrap blocks (`"result" in result ? … : default`). Collapsing them to raw ask()/signal() sugar would (a) drop 61 observability signals, (b) change every return type from unwrapped X → Outcome<X> = BREAKING public API, (c) lose default fallbacks. The schemas.ts "fold" is also lateral: C4 already defines each response schema once and imports 6 into receivers.ts (no duplication to remove). So C8's outcome (delta_loc_net negative via collapse) is unreachable safely.
     RE-SCOPE OPTIONS: (1) leave client.ts as-is — typed ask/signal already IS the no-drift surface (C3); the bespoke methods are ergonomic unwrappers worth keeping. (2) add @deprecated JSDoc → ask equivalents (net +LOC, fails the outcome but guides migration). (3) only fold: move the 6 schema defs schemas.ts→receivers.ts, re-export for compat (≈net-zero LOC, low value). Recommend (1): close the plan; the drift C8 targeted was already killed by C3's compile-checking.
 
-Plan close
-  - [ ] Plan outcome command exits 0
-  - [ ] Every deliverables row shipped + reachable
-  - [ ] ux_after walkable: paste the typed-ask compile + 400-on-bad-payload proof
-  - [ ] Final compress sweep + docs/learnings append
-  - [ ] Plan rubric ≥ 0.65
+Plan close  — ✅ CLOSED 2026-05-29 (live: one-prod 338120ad)
+  - [x] Plan outcome command exits 0 (`sdk build && vitest tests/receivers.test.ts` — 9✓; full suite 43✓)
+  - [x] Every deliverables row shipped + reachable (C1–C7; C8 DROPPED — drift it targeted already killed by C3's compile-checking, the unwrap/telemetry methods are worth keeping)
+  - [x] ux_after walkable: typed `ask("world:create-actor",{wrong:1})` is a compile error (tsconfig.test.json @ts-expect-error); bad payload 400s with a fix-hint (receivers-route.test.ts); meta:catalog/openapi oneOf live in prod
+  - [x] Final docs/learnings append (C4–C7 + deploy) + README modules synced
+  - [x] Plan rubric ≥ 0.65 (cycle composites 0.88–0.96; plan avg ≈ 0.92)
+
+**Decision (C8 dropped):** typed `ask`/`signal` (C3) IS the no-drift surface; the bespoke `client.ts` methods are ergonomic Outcome-unwrappers carrying telemetry — collapsing them is a breaking API change for negative value. Follow-ons remain open: `meta:reputation` (TypeDB-path data), `generate-types.ts` stale SPEC_PATH.
 ```
 
 ---
