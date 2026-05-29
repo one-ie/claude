@@ -413,13 +413,19 @@ Fix: `AbortSignal.timeout(10_000)` on every `fetch()` to TypeDB Cloud.
 
 Six cycles, each independently deployable. DO stub falls back to old path on 5xx during cutover.
 
-| Cycle | What | Batch |
-|---|---|---|
-| C1 | BrainDO class + namespace + graph load | 1 |
-| C2 | BrainClient in SDK, replace substrate.ts hot path | 2 |
-| C3 | Absorb WsHub into BrainDO | 2 |
-| C4 | Replace pollOutcome with WebSocket push | 3 |
-| C5 | Remove sync Job 1, KV → backup role | 4 |
-| C6 | Security: TQL audit, AbortSignal, circuit breaker, split keys | 2 (parallel with C2/C3) |
+| Cycle | What | Batch | Status |
+|---|---|---|---|
+| C1 | BrainDO class + namespace + graph load | 1 | built · local-verified |
+| C2 | BrainClient in SDK, replace substrate.ts hot path | 2 | built · local-verified |
+| C3 | Absorb WsHub into BrainDO | 2 | built · local-verified |
+| C4 | Replace pollOutcome with WebSocket push | 3 | built · local-verified |
+| C5 | Remove sync Job 1, KV → backup role | 4 | built · local-verified |
+| C6 | Security: TQL validation, AbortSignal, circuit breaker, split keys | 2 | built · local-verified |
+
+All six built and tsc/vitest-clean across the api, sdk, channels, sync, and web workers.
+Live proof (`curl https://api.one.ie/brain/*`) is deploy-gated — see the deploy handoff in
+`typedb-cloudflare-todo.md`. Note `/brain/*` requires `Bearer GATEWAY_API_KEY`; the alarm
+drift-check reads the shared KV `{key}.hash` keys, using `/api/export/hash` only when
+`SYNC_SECRET`+`APP_URL` are set on the gateway.
 
 See `typedb-cloudflare-todo.md` for the full execution plan.

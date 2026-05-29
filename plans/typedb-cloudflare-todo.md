@@ -482,37 +482,76 @@ demo:
 
 ```
 Batch 0 (shared)
-  - [ ] W0 baseline
-  - [ ] W1 shared recon (api/src/index.ts, both substrate.ts, sync/index.ts, sdk/client.ts)
+  - [x] W0 baseline (api tsc=0)
+  - [x] W1 shared recon (api/src/index.ts, both substrate.ts, sync/index.ts, sdk/client.ts)
 
 Batch 1
-  - [ ] C1 — BrainDO foundation                          state: ready
-    - [ ] W1 · W2 · W3 · W4
+  - [x] C1 — BrainDO foundation                          state: built · local-verified
+    - [x] W1 · W2 · W3 · W4 (tsc=0; live /brain/* curl = deploy-gated)
 
-Batch 2  (fires when C1 closes)
-  - [ ] C2 — BrainClient in SDK                          state: blocked-on-C1
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C3 — Absorb WsHub                                state: blocked-on-C1
-    - [ ] W1 · W2 · W3 · W4
-  - [ ] C6 — Security hardening                          state: blocked-on-C1
-    - [ ] W1 · W2 · W3 · W4
+Batch 2
+  - [x] C2 — BrainClient in SDK                          state: built · local-verified
+    - [x] W1 · W2 · W3 · W4 (demo gate isToxicFast|toxicMemo=0; sdk tsc=0)
+  - [x] C3 — Absorb WsHub                                state: built · local-verified
+    - [x] W1 · W2 · W3 · W4 (demo gate WS_HUB|WsHub=0; wscat = deploy-gated)
+  - [x] C6 — Security hardening                          state: built · local-verified
+    - [x] W1 · W2 · W3 · W4 (vitest security 5/5; validateEdgeId + breaker + AbortSignal)
 
-Batch 3  (fires when C2 + C3 close)
-  - [ ] C4 — Replace pollOutcome                         state: blocked-on-C2,C3
-    - [ ] W1 · W2 · W3 · W4
+Batch 3
+  - [x] C4 — Replace pollOutcome                         state: built · local-verified
+    - [x] W1 · W2 · W3 · W4 (demo gate pollOutcome=0; push wired via writeOutcome→notify)
 
-Batch 4  (fires when C3 + C4 close)
-  - [ ] C5 — Remove sync Job 1                           state: blocked-on-C3,C4
-    - [ ] W1 · W2 · W3 · W4
+Batch 4
+  - [x] C5 — Remove sync Job 1                           state: built · local-verified
+    - [x] W1 · W2 · W3 · W4 (demo gate ALL_ENDPOINTS|exportKeys absent; sync tsc=0)
 
 Plan close
-  - [ ] Plan outcome command exits 0
-  - [ ] All deliverables reachable
-  - [ ] ux_after walkable end-to-end
-  - [ ] Final compress sweep
-  - [ ] Final docs append (plans/typedb-cloudflare.md migration path updated)
-  - [ ] Plan rubric ≥ 0.65
+  - [ ] Plan outcome command exits 0          ← DEPLOY-GATED (hits live api.one.ie)
+  - [x] All deliverables reachable (code complete)
+  - [ ] ux_after walkable end-to-end          ← needs live deploy
+  - [x] Final compress sweep (tsc clean all 6 workers; vitest 14/14)
+  - [x] Final docs append (plans/typedb-cloudflare.md migration path updated)
+  - [ ] Plan rubric ≥ 0.65 (code rubric clears; goal-fit gated on live proof)
 ```
+
+## Deploy + verify handoff (the one gated step)
+
+The build is complete and locally verified. The plan outcome curls live production, so the
+final proof requires a deploy I did not run autonomously. Order matters — deploy api FIRST.
+
+```bash
+# 1. (C5 prereq) let BrainDO self-populate from TypeDB on a KV miss
+cd api && wrangler secret put SYNC_SECRET        # same value as one.ie SYNC_SECRET
+#         wrangler secret put APP_URL   → or add APP_URL="https://one.ie" to [vars]
+
+# 2. (C6) split write key (optional during cutover; GATEWAY_API_KEY still works)
+cd api && wrangler secret put GATEWAY_WRITE_KEY
+
+# 3. deploy gateway (BrainDO + WsHub deletion migration v3 + security)
+cd api && wrangler deploy
+
+# 4. deploy web (export/hash.ts, substrate hot-path, signal/ask routes), sync, channels
+cd one.ie/web && bun run deploy
+cd sync && wrangler deploy
+cd channels && wrangler deploy   # set GATEWAY_API_KEY secret first to enable brain toxic path
+
+# 5. PROVE — note: /brain/* requires auth (the plan's outcome curl omitted it)
+KEY=<GATEWAY_API_KEY>
+curl -s -H "Authorization: Bearer $KEY" https://api.one.ie/brain/graph | jq '.loaded'      # true
+curl -s -H "Authorization: Bearer $KEY" https://api.one.ie/brain/graph | jq '.paths|length' # > 0
+curl -s -X POST -H "Authorization: Bearer $KEY" https://api.one.ie/brain/mark \
+     -d '{"src":"test","tgt":"probe","delta":1}' | jq '.ok'                                  # true
+wscat -c "wss://api.one.ie/ws" -H "Origin: https://one.ie"  # connects; send 'ping' → 'pong'
+```
+
+**Deviations from the todo (justified):**
+- `/brain/*` requires `Bearer GATEWAY_API_KEY` (the todo's outcome curl omitted auth) — an
+  unauthenticated graph-mutation endpoint on prod would be a real vulnerability.
+- BrainDO alarm drift-check reads the existing KV `{key}.hash` keys (api+sync share the
+  `1c1dac…` namespace) and only uses `/api/export/hash` when `SYNC_SECRET`+`APP_URL` are set
+  — avoids requiring a new secret on the gateway for C1. Post-C5, set those secrets so the
+  DO self-populates (step 1).
+- WsHub removal uses the `deleted_classes` migration (v3), the correct CF DO removal path.
 
 ---
 
