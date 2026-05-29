@@ -9,7 +9,7 @@ tags: [composio, integrations, chat, agents, tools]
 goal: "Every active Composio connection a user has wired becomes a live tool in their chat session and agent toolkit — no code changes needed per integration."
 outcome: "Active Gmail/LinkedIn/Slack connections surface as callable tools in chat. Agent auto-discovers connected toolkits per user. Tool calls go through approval gate at sensitivity ≥ 0.7."
 ---
-
+/m
 # Composio Integration Plan
 
 ## State today
@@ -20,8 +20,11 @@ outcome: "Active Gmail/LinkedIn/Slack connections surface as callable tools in c
 | OAuth redirect flow | `api/composio/connect.ts` + `api/composio/callback.ts` — fully wired |
 | API key / BASIC form flow | Same route — `needs_credentials` response with field list |
 | Active connections | 1 (`dataforseo` — EXPIRED) |
-| Tool bridge to AI SDK | Not built — `aitools.ts` has no Composio tools |
-| Tool bridge to chat | Not built — users can't invoke Composio tools in chat |
+| Tool bridge to AI SDK | **Built** — `channels/src/composio.ts` `composioFallback` + `composioScoped` |
+| Tool bridge to chat | **Built** — `makeAgent` assembles tools; `connect` card surfaces missing toolkits |
+| Verify + connections endpoints | **Built** — `api/composio/verify.ts` + `connections.ts` (composio-todo C2) |
+| Scoped agent toolsets | **Built** — `Persona.integrations` → `composioScoped` (composio-todo C3) |
+| Sequence skills | **Built** — `.claude/skills/composio/rules/sequences/*.md` (composio-todo C4) |
 | 83 tool definitions cached | `~/.composio/tool_definitions/` — browsed, not wired |
 
 The connect UI exists. Auth flows work. Nothing calls the tools yet.

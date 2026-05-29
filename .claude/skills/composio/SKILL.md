@@ -53,3 +53,13 @@ composio init
 ```
 
 > Full reference: [Building with Composio](rules/building-with-composio.md)
+
+## Multi-step sequences
+
+Some toolkits require a specific call order. Follow these before calling, or the chain 4xxs:
+
+- [LinkedIn](rules/sequences/linkedin.md) — get author URN, then post
+- [Gmail](rules/sequences/gmail.md) — fetch thread, then reply
+- [Stripe](rules/sequences/stripe.md) — customer → invoice → finalize → send
+- [Google Calendar](rules/sequences/calendar.md) — find free slots, then create event
+- [QuickBooks](rules/sequences/quickbooks.md) — customer, then invoice
