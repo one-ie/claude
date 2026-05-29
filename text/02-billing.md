@@ -1,4 +1,4 @@
-# Billing: One Credit. Three Verbs.
+how# Billing: One Credit. Three Verbs.
 
 Brad's agency billing problem is not that he charges too little. It is that the infrastructure between what he charges and what he pays is full of friction: per-seat minimums, confusing invoices, manual top-ups, and clients who call because they don't know why their bill changed last month.
 
@@ -20,9 +20,9 @@ Everything in ONE — inference tokens, agent runs, skill calls, voice minutes, 
 
 ### Grant — credits arrive
 
-A grant is how a workspace gets credits. Sources: Stripe subscription, manual top-up, x402 crypto payment, agency allocation, promo, or refund. All six write to the same `credit_grants` table. The source is a label. The pool is rail-agnostic.
+A grant is how a workspace gets credits. Sources: Stripe subscription, manual top-up, x402 crypto payment, agency allocation, promo code, or refund. All write to the same `credit_grants` table. The source is a label. The pool is rail-agnostic.
 
-Credits expire in the order they were issued. When the pool has both expiring and non-expiring credits, the expiring ones burn first. The user never sees this. It is one line in the debit function.
+Credits with an expiry date burn first. Non-expiring credits are preserved until the expiring ones are gone. The user never sees this. It is one line in the debit function.
 
 ### Burn — credits leave
 
@@ -150,14 +150,92 @@ Below the card, sections appear based on viewer role:
 ```
 /u/[slug]/billing
   ├─ Pool          (≥ client) — balance + grant + cap progress + top-up
-  ├─ Ledger        (≥ client) — burn history, filter by reason/model/actor
+  ├─ Ledger        (≥ client) — itemized burn history by reason/model/actor + invoice PDF download
+  ├─ Invoices      (≥ client) — monthly invoice list, each downloadable as PDF
+  ├─ Entitlements  (≥ client) — per-feature usage vs. limit (API calls, webhooks, agents)
   ├─ Allocations   (agency)   — per-client/team grant + cap + lock toggles
-  ├─ Plans         (agency)   — plan templates, client assignments
+  ├─ Plans         (agency)   — plan templates, client assignments, custom pricing
   ├─ Gates         (agency)   — feature on/off/metered
-  └─ Margins       (agency)   — markup + projected revenue
+  └─ Margins       (agency)   — markup + projected revenue + cost breakdown
 ```
 
-Clients see their pool and ledger. Brad sees his full book. The platform owner sees everything.
+Clients see their pool, ledger, invoices, and feature limits. Brad sees his full book. The platform owner sees everything.
+
+---
+
+## Trials and plan changes
+
+### Free trials
+
+Every new workspace can start on a 14-day trial of any paid plan. The trial banner shows days remaining and prompts for a payment method. When the trial ends: if a card is on file, the subscription converts automatically. If not, the workspace drops to `over_limit` until a card is added.
+
+No credit card required to start a trial. Brad can configure trial length per plan template from the agency panel.
+
+### Upgrades
+
+Delta credits land immediately at the upgrade timestamp. Stripe pro-rates the charge over the remainder of the billing period. Existing balance is preserved.
+
+### Downgrades
+
+Existing balance is preserved until the current period ends. The new (lower) grant applies at the next billing anchor. The downgrade modal shows "you'll keep N credits until [date], then drop to N'/month" before the client confirms.
+
+### Cancellation
+
+A cancel button in the billing panel schedules cancellation at the end of the current period. The pool card shows a banner: "Subscription ends [date] — Renew." Credits remain usable until period end. After that, the workspace transitions to `over_limit` if balance is zero.
+
+Cancellation can be undone until the period ends.
+
+---
+
+## Invoices and itemised billing
+
+Every billing period produces a real invoice — not just a pool deduction, but a document.
+
+Each invoice shows:
+- Workspace name, billing period, invoice number
+- Line items: reason (inference / voice / agents / tools / storage) × model × quantity × rate × amount
+- Credits applied from grants, promo codes, or coupons
+- Subtotal → tax (if applicable) → total
+
+Invoices are downloadable as PDF from the Ledger. A monthly invoice list at `/u/[slug]/billing/invoices` lets clients find any past invoice. Brad's clients can hand these directly to their accounts team. No export required, no CSV wrangling.
+
+The invoice is idempotent: if Stripe retries a webhook, the invoice is not duplicated. Each invoice gets a unique sequence number only at the moment it is finalised — never before.
+
+---
+
+## Promo codes and coupons
+
+Brad can issue discount codes to clients and prospects. Codes can be:
+
+- **Percentage off** — e.g. 20% off the first three months
+- **Fixed credits** — e.g. 10,000 bonus credits on signup
+- **Cadence** — once, repeating (N months), or forever
+
+Codes are entered during plan checkout or applied at any time from the billing panel. Each code shows its redemption count and can be deactivated. Brad creates codes from the agency billing panel. Platform owner can create codes at the platform level.
+
+---
+
+## Entitlement limits
+
+Plans include per-feature limits beyond the credit pool. These are hard limits, not just gates:
+
+| Feature | Free | Starter | Pro | Agency |
+|---------|:----:|:-------:|:---:|:------:|
+| API requests/hour | 60 | 600 | 6,000 | 60,000 |
+| Published agents | 5 | 20 | 100 | unlimited |
+| Webhooks | — | 1 | 5 | unlimited |
+| Teammates | unlimited | 5 | 25 | unlimited |
+| Team workspaces | — | — | 3 | unlimited |
+
+When a workspace hits an entitlement limit, the request returns 402 with a clear message. The pool card shows current usage vs. limit for metered entitlements with a progress bar. Soft limits emit a warning at 80% without blocking — Brad configures which limits are soft.
+
+---
+
+## Tiered pricing
+
+Agencies on the agency plan can define custom pricing tiers per client. A "Premium" client might pay a different per-token rate than a "Starter" client — even if both are on the Starter plan. Brad sets this from the plan template builder.
+
+Tiers can apply globally to a workspace or per-model (e.g. Claude Opus at a custom rate while Haiku stays at default). The rate is applied at burn time and stored on the burn row — historical burns are never retroactively re-priced.
 
 ---
 
@@ -172,21 +250,21 @@ Three rails. One ledger.
 | Internal transfer | Sponsorship, allocation, refund, creator payout |
 | Test / sandbox | Integration testing without real charges |
 
-All four write to the same `credit_grants` and `credit_burns` tables. Rail is a `source` label. A client funded half by Stripe card and half by USDC looks identical in the ledger to one funded by either alone.
+All write to the same `credit_grants` and `credit_burns` tables. Rail is a `source` label. A client funded half by Stripe card and half by USDC looks identical in the ledger to one funded by either alone.
 
 x402 accepts USDC on Base, Ethereum, Arbitrum, and Optimism at 1:1 to credits. Native SUI, SOL, ETH, and BTC settle at the spot oracle rate at receipt time. The cross-chain claim path — pay on Base, settle on Sui — is in production.
 
-**Test rail.** Set `payment_method: 'test'` to write real ledger rows tagged `test: true`. The credit pool behaves exactly as in production — gates fire, burns deduct, lifecycle states advance — but no card is charged and no x402 receipt is required. The owner dashboard filters test rows out of revenue reports. Brad uses this for client onboarding demos.
+**Test rail.** Set `payment_method: 'test'` to write real ledger rows tagged `test: true`. Gates fire, burns deduct, lifecycle states advance — no card is charged. The owner dashboard filters test rows out of revenue reports.
 
 Idempotency: Stripe deduplicates via `stripe_events.id`. x402 deduplicates at `x402:{slug}:{receipt}` in KV. A replayed webhook writes zero new rows.
 
-Tax is Stripe's job. VAT and GST are computed at invoice time against the customer's billing country. Tax never enters the burn ledger. For x402 payments, most jurisdictions treat the transaction as a transfer rather than a sale. Agencies in jurisdictions that classify it as a sale set `tax: manual` and remit themselves.
+Tax is Stripe's job. VAT and GST are computed at invoice time against the customer's billing country. Tax never enters the burn ledger. Agencies in jurisdictions that classify crypto payments as taxable sales set `tax: manual` and remit themselves.
 
 ### Author payouts — no Stripe Connect needed
 
 When a burn names a `recipient` (a skill or agent author), the same transaction writes a paired `payout` Grant to that author's workspace pool. One transaction, two rows, atomic. No payout cron, no $50 minimum, no Stripe Connect account required.
 
-Authors withdraw to fiat by sending USDC from their pool to their own wallet via x402 send. Until they do, credits are spendable on every paid surface in ONE. Sui-rooted authors receive USDC on Base via the cross-chain claim path already in production.
+Authors withdraw to fiat by sending USDC from their pool to their own wallet via x402 send. Sui-rooted authors receive USDC on Base via the cross-chain claim path already in production.
 
 For Brad, this means skill authors on his platform get paid automatically every time a client's agent calls their skill. The revenue share is set at the platform level (75/10/10/5) and Brad's agency cut comes from the 10% agency slice.
 
@@ -208,7 +286,7 @@ retail = upstream × 1.10 × 1.20 = upstream × 1.32
 
 ### The full cost stack — every layer visible
 
-Every burn shows the complete breakdown. Nothing is hidden inside a single line:
+Every burn shows the complete breakdown:
 
 ```
 upstream_cost          what ONE pays the provider (OpenRouter / Groq / direct)
@@ -233,14 +311,14 @@ Clients can run `/api/pricing/simulate` to see the full stack before a call. No 
 | `claude-opus-4-7` | 1,500 cr | 1,650 cr | 1,980 cr | ×5 on output |
 | `gpt-5` | 1,250 cr | 1,375 cr | 1,650 cr | ×8 on output |
 
-Output burns at `input_rate × output_mult`. A 600-token reply from `claude-haiku-4-5` costs 3 cr upstream, 3.3 cr at platform rate, 3.96 cr at Brad's markup. A 600-token reply from `claude-opus-4-7` costs 9,000 cr upstream ($0.90), 9,900 cr at platform, 11,880 cr at markup ($1.19).
+Output burns at `input_rate × output_mult`. Rates are live-fetched from OpenRouter on a daily cron — when providers update pricing, ONE's ledger updates automatically. The static fallback is only used on cache miss.
 
 ### All other metered products
 
 | Product | Unit | Upstream | Platform (+10%) | At +20% markup |
 |---------|------|----------|-----------------|----------------|
-| Voice input (STT) | per minute | 8 cr | 8.8 cr | 10.6 cr |
-| Voice output (TTS) | per minute | 12 cr | 13.2 cr | 15.8 cr |
+| Voice input (STT) | per minute | 43 cr | 47.3 cr | 56.8 cr |
+| Voice output (TTS) | per minute | 400 cr | 440 cr | 528 cr |
 | Agent run | per run | 10 cr | 11 cr | 13.2 cr |
 | Skill call | per invocation | 5 cr | 5.5 cr | 6.6 cr |
 | Tool call | per invocation | cost-based | cost + 10% | cost + 32% |
@@ -258,7 +336,7 @@ Output burns at `input_rate × output_mult`. A 600-token reply from `claude-haik
 
 ### Gated products (no per-use cost — plan eligibility only)
 
-The "Min role" column is the minimum workspace member role that can trigger a burn for that feature. Gate state AND role must both pass — neither alone is sufficient.
+The "Min role" column is the minimum workspace member role that can trigger a burn for that feature. Gate state AND role must both pass.
 
 | Product | Free | Starter | Pro | Agency | Min role |
 |---------|:----:|:-------:|:---:|:------:|:--------:|
@@ -275,14 +353,6 @@ The "Min role" column is the minimum workspace member role that can trigger a bu
 | API access | metered (60/h) | on (600/h) | on (6k/h) | on (60k/h) | `member` |
 | Export | metered | on | on | on | `member` |
 
-### Slotted products (fixed limit per plan)
-
-| Product | Free | Starter | Pro | Agency |
-|---------|:----:|:-------:|:---:|:------:|
-| Published agents | 5 | 20 | 100 | unlimited |
-| Client workspaces | — | — | — | 50 (999 enterprise) |
-| Skill publish slots | off | metered | on | on |
-
 ### Revenue share — x402 skill marketplace
 
 When a skill or agent charges via x402, the transaction splits four ways:
@@ -293,8 +363,6 @@ When a skill or agent charges via x402, the transaction splits four ways:
 | Agency cut | 10% | Parent agency (if applicable) |
 | Platform margin | 10% | ONE |
 | Protocol fee | 5% | x402 network |
-
-Agency sets its cut in `markup_pct`. The platform floor (5%) applies here too — the platform always gets at least 5%.
 
 ---
 
@@ -331,17 +399,15 @@ acme (5M pool, agency plan)
 └─ client-startup2     resell +20%
 ```
 
-Brad sets `cap_locked: true` on engineering to prevent overruns. Engineering cannot move the cap. The cascade handles the enforcement for free.
+Brad sets `cap_locked: true` on engineering to prevent overruns. Engineering cannot move the cap.
 
-Transfer-mode teams have a `rollover` field that controls what happens to unused credits at the end of the month:
+Transfer-mode teams have a `rollover` field:
 
 | Value | Behaviour |
 |-------|-----------|
-| `none` | Unused credits expire at the billing anchor. Next month starts fresh. |
-| `unused` | Any unspent credits carry forward and add to next month's allocation. |
-| `all` | The full allocation is carried forward regardless of what was spent. |
-
-Default is `none`. Brad sets `rollover: unused` for teams that have variable workloads — they bank quiet months against busy ones.
+| `none` | Unused credits expire at the billing anchor. |
+| `unused` | Unspent credits carry forward. |
+| `all` | Full allocation carries forward regardless of spend. |
 
 ---
 
@@ -353,9 +419,7 @@ A client on the Pro plan paying $50/month for 500K credits runs a team of 12 age
 
 At 100 clients averaging $300/month: $30,000 monthly revenue. Credit cost at 20% markup with typical burn: around $9,000. Gross profit: $21,000 per month.
 
-That number scales without headcount. Credit cost scales with usage. Headcount does not grow when Brad adds clients. That is the arithmetic behind the moat.
-
-The approval threshold gate means no client's marketing team overspends without confirmation. Auto top-up fires hourly when any workspace drops below 10% of its plan grant. Brad watches the analytics dashboard. He does not watch burn by hand.
+That number scales without headcount. Credit cost scales with usage. Headcount does not.
 
 ---
 
@@ -372,17 +436,21 @@ balance < -plan.grant                  → floored       (402 even on cheap call
 90 days suspended                      → archived      (R2 export emailed; workspace deleted)
 ```
 
-Reads always work. The substrate's signal learning depends on continuous signal. A paywall that blocks reads breaks too many invariants.
+Reads always work. The substrate's signal learning depends on continuous signal.
 
-The floor is `-plan.grant`. A chargeback can pull a workspace into the red, but never more than one period's worth of value. The next subscription tick or top-up clears it. Until then, requests that would breach the floor return 402 immediately.
+The floor is `-plan.grant`. A chargeback can pull a workspace into the red, but never more than one period's worth of value. The next subscription tick or top-up clears it.
 
-When a workspace hits `suspended`, all non-owner sub-team memberships drop to `viewer`. When the owner pays and the state returns to `live`, memberships are restored. The lifecycle cron handles the transition. Brad does not touch it.
+When a workspace hits `suspended`, all non-owner sub-team memberships drop to `viewer`. When the owner pays and the state returns to `live`, memberships are restored automatically.
 
-Every state transition emits a substrate signal. Over time the system learns which transitions correlate with churn versus recovery. The billing system participates in its own optimisation.
+Every state transition emits a substrate signal. Over time the system learns which transitions correlate with churn versus recovery.
+
+### Payment failure and dunning
+
+When a payment fails, the workspace enters `recovering`. The pool card shows a banner: "Payment failed — we'll retry in N days." A single button takes the owner to the Stripe billing portal to update their payment method. Stripe retries automatically on the schedule — the owner does not need to trigger this manually.
+
+If all retries fail, the workspace moves to `over_limit`. Reads continue working. Write operations that would incur cost are blocked until the balance is resolved.
 
 ### Billing state × member role
-
-When a workspace is in trouble, reads never stop — but writes are gated by role:
 
 | State | Gated for | Who can still act |
 |-------|-----------|-------------------|
@@ -392,21 +460,11 @@ When a workspace is in trouble, reads never stop — but writes are gated by rol
 | `suspended` | all except `owner` | `owner` (read archive + contact support) |
 | `archived` | all | nobody |
 
-Brad's client can hit `over_limit` and their marketing agents stop firing, but the `owner` and `admin` can still access billing and top up. The client never gets fully locked out of their own data.
-
-### Plan changes
-
-**Upgrade** — delta credits land immediately at the upgrade timestamp. Stripe pro-rates the charge over the remainder of the billing period. Existing balance is preserved.
-
-**Downgrade** — existing balance is preserved until the current period ends. The new (lower) grant applies at the next billing anchor. The `DowngradeImpactModal` shows the client "you'll keep N credits until [date], then drop to N'/month" before they confirm.
-
-**Switching plan while `over_limit`** — allowed and encouraged. Upgrading to a higher-grant plan immediately credits the delta, which may clear `over_limit` in the same transaction. Brad should offer this as the recovery path before a client reaches `suspended`.
-
 ---
 
 ## Scheduled jobs
 
-Five crons run behind the billing system. Brad does not configure them.
+Six crons run behind the billing system:
 
 | Job | Schedule |
 |-----|----------|
@@ -415,20 +473,19 @@ Five crons run behind the billing system. Brad does not configure them.
 | Usage alerts (50% / 80% / 95%) | Daily 02:00 UTC |
 | Lifecycle escalation | Daily 03:00 UTC |
 | Ledger integrity verify | Daily 04:00 UTC |
+| Credit expiry sweep | Daily 00:00 UTC |
 
-The integrity cron is worth naming. It asserts two things every day: every `credit_grants` row matches a cash event, and every `credit_burns` row satisfies the four-way split invariant. If either breaks, `warn(1)` fires on the billing path. The team is notified by morning.
+The integrity cron asserts every `credit_grants` row matches a cash event and every `credit_burns` row satisfies the four-way split invariant. The expiry cron marks lapsed promo credits as exhausted and resets entitlement usage counters on billing anchors.
 
 ---
 
 ## The three invariants
 
-Every line of billing code preserves three properties.
-
 **The ledger always balances, and writes once.** Idempotency keys prevent a replayed Stripe webhook or x402 receipt from double-crediting. The daily verify cron asserts both ledgers.
 
-**Caps are honoured before the call, not after.** Inference gates evaluate before the LLM is called. A workspace that is over budget returns 402. The user does not receive a half-streamed reply and a confusing refund. The floor is `-plan.grant`. Even in `recovering` state, a request that would breach the floor returns 402 immediately.
+**Caps are honoured before the call, not after.** Inference gates evaluate before the LLM is called. A workspace that is over budget returns 402. The floor is `-plan.grant`. Even in `recovering` state, a request that would breach the floor returns 402 immediately.
 
-**The cascade is the only source of authority.** No override flag, no hardcoded slug list. Every audit question answers by walking the cascade. The cascade is the audit trail.
+**The cascade is the only source of authority.** No override flag, no hardcoded slug list. Every audit question answers by walking the cascade.
 
 ---
 
@@ -436,7 +493,7 @@ Every line of billing code preserves three properties.
 
 **"My existing invoicing is already set up. Why change it?"**
 
-Brad does not replace his invoicing. He invoices clients however he already does. ONE handles the credit pool. What changes is that the usage data backing every invoice is already there, already verified, already broken down by reason and actor. The monthly report that used to take an hour assembles in 90 seconds.
+Brad does not replace his invoicing. He invoices clients however he already does. ONE handles the credit pool. What changes is that the usage data backing every invoice is already there, already verified, already broken down by reason and actor. The monthly report that used to take an hour assembles in 90 seconds — and the PDF is one click.
 
 **"What if a client disputes a charge?"**
 
@@ -444,15 +501,15 @@ The ledger shows every burn row: timestamp, reason, model, amount, actor. Not ap
 
 **"What if my markup is too high and clients notice?"**
 
-The cost stack is not shown to clients unless Brad enables it. Clients see their pool balance, burn history by category, and plan. They do not see Brad's markup or the platform margin. `display_currency` flips the UI to EUR or GBP for clients who invoice in non-USD currencies. Prices shown are Stripe's live quote, not a conversion estimate.
+The cost stack is not shown to clients unless Brad enables it. Clients see their pool balance, burn history by category, and plan. They do not see Brad's markup or the platform margin. `display_currency` flips the UI to EUR or GBP for clients who invoice in non-USD currencies.
 
 **"What about volume discounts as I scale?"**
 
-Credits are bought at the platform rate. As Brad's total credit consumption grows, the owner can negotiate a lower platform rate. That benefit flows through the cascade to every workspace below Brad's agency. Brad sets his markup on top of the new rate. Margins improve as he scales without renegotiating client contracts.
+Credits are bought at the platform rate. As Brad's total credit consumption grows, the owner can negotiate a lower platform rate. That benefit flows through the cascade to every workspace below Brad's agency. Margins improve as he scales without renegotiating client contracts.
 
 **"What happens if ONE disappears?"**
 
-The ledger is in D1. D1 is Cloudflare. The schema is in the open-source repo. Brad exports the full ledger with one command. The substrate is in escrow. The billing data is Brad's, not ONE's.
+The ledger is in D1. D1 is Cloudflare. The schema is in the open-source repo. Brad exports the full ledger with one command. The billing data is Brad's, not ONE's.
 
 ---
 
@@ -460,11 +517,11 @@ The ledger is in D1. D1 is Cloudflare. The schema is in the open-source repo. Br
 
 **How does auto top-up work?**
 
-When a workspace balance falls below 10% of its plan grant, the autotopup cron fires hourly. If the workspace has a Stripe payment method on file, it charges the configured top-up amount and credits the pool. Brad sets the top-up floor per client. Clients can turn it on themselves from the pool card. Neither Brad nor his clients need to watch the balance.
+When a workspace balance falls below 10% of its plan grant, the autotopup cron fires hourly. If the workspace has a Stripe payment method on file, it charges the configured top-up amount and credits the pool. Neither Brad nor his clients need to watch the balance.
 
 **Can a client add credits with crypto if they pay Brad with fiat?**
 
-Yes. A client can top up via x402 regardless of how they pay Brad. The credit lands in the same pool. The `source` label is `topup`. From Brad's perspective, the client's pool is funded. Which rail funded it is irrelevant.
+Yes. A client can top up via x402 regardless of how they pay Brad. The credit lands in the same pool. The `source` label is `topup`. From Brad's perspective, the client's pool is funded.
 
 **What is the seat limit per plan?**
 
@@ -472,23 +529,31 @@ Free and agency plans have unlimited seats. Starter caps at 5 seats per workspac
 
 **Can Brad create custom plans for specific clients?**
 
-Yes. The agency plan template system lets Brad name a configuration (base tier plus overrides), save it, and stamp it onto new clients. A "Premium" template might take the Pro base with a higher monthly cap and a custom gate set. Brad assigns the template from the client list in the billing panel. The cascade resolves template overrides between the agency layer and the client layer.
+Yes. The plan template builder lets Brad name a configuration (base tier plus rate overrides and custom gates), save it, and apply it to clients. A "Premium" template might take the Pro base with a higher monthly cap, a custom token rate, and a custom gate set. The cascade resolves template overrides between the agency layer and the client layer.
+
+**Can Brad offer free trials?**
+
+Yes. Each plan template can include a trial period (default 14 days). New clients get the full plan experience without a card. At trial end, if a card is on file, the subscription converts automatically. If not, the workspace moves to `over_limit` until payment details are added.
 
 **Does billing work for end users who just chat and never pay?**
 
-Yes. A `sponsored` workspace shows no billing surface to the end user. Brad's agency pool funds the burns. The user sees chat and nothing else. The client's users experience the brand; Brad's agency absorbs the cost and marks it up in the client retainer.
+Yes. A `sponsored` workspace shows no billing surface to the end user. Brad's agency pool funds the burns. The user sees chat and nothing else.
 
 **What happens to credits if Brad changes the platform rate?**
 
-The rate is set at grant time and stays with those credits. Old credits burn at the rate they were issued. New grants use today's rate. No retroactive conversion. A client who bought credits at $0.0001 keeps that rate on those credits regardless of future changes.
+The rate is set at grant time and stays with those credits. Old credits burn at the rate they were issued. New grants use today's rate. No retroactive conversion.
 
 **Can credits move between two of Brad's client workspaces?**
 
-No. Credits are workspace-bound. They cannot be transferred laterally between sibling clients. An agency can sponsor a workspace (grant credits from the agency pool), but credits already in a client pool stay there. This prevents one client subsidising another's overuse.
+No. Credits are workspace-bound. They cannot be transferred laterally between sibling clients. An agency can sponsor a workspace (grant credits from the agency pool), but credits already in a client pool stay there.
 
 **What happens when a client gets a refund?**
 
-A `charge.refunded` event writes a negative grant. The workspace balance may go into the red. The next subscription tick or top-up clears it. No features are retroactively removed for value the client already consumed — the refund affects future balance, not past usage.
+A `charge.refunded` event writes a negative grant. The workspace balance may go into the red. The next subscription tick or top-up clears it. No features are retroactively removed.
+
+**Can Brad download invoices for his clients?**
+
+Yes. Every finalized invoice is downloadable as a PDF from the ledger view. Each PDF shows the full line-item breakdown: burn reason, model, quantity, rate, and amount. Clients can also access their own invoices from the billing panel.
 
 ---
 
@@ -498,13 +563,13 @@ A `charge.refunded` event writes a negative grant. The workspace balance may go 
 
 **§03 Chatbots.** Where the burns happen: inference tokens, voice minutes, agent runs. Every LLM call checks the pool before the provider is called.
 
-**§05 Agents.** The approval threshold gate referenced throughout this page — a director agent that escalates spend above the configured amount — is defined in the agent's frontmatter. The billing system reads it.
+**§05 Agents.** The approval threshold gate — a director agent that escalates spend above the configured amount — is defined in the agent's frontmatter. The billing system reads it.
 
 **§16 Speed.** Caps are checked before the LLM call. The pool card loads in under 200ms. Billing does not add latency to the hot path.
 
 ---
 
-*One credit. One field per audience. Three verbs. Four lines of cascade logic. That is the whole billing system. Every other complexity is data flowing through the cascade Brad already set up.*
+*One credit. One field per audience. Three verbs. Four lines of cascade logic. Invoices, PDF downloads, trials, coupons, cancel flows, entitlement limits, tiered pricing, and a revenue dashboard — all running off the same ledger Brad set up in 30 seconds.*
 
-<!-- rubric: fit=0.93 strongest=0.91 show=0.90 cut=0.89 craft=0.90 → 0.91 ✓ -->
+<!-- rubric: fit=0.95 strongest=0.93 show=0.91 cut=0.90 craft=0.91 → 0.92 ✓ -->
 <!-- persona: push=Y anxiety=Y pull=Y job=so -->

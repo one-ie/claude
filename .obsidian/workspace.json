@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "plans/billing-products.md",
+                "file": "plans/composio.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "billing-products"
+              "title": "composio"
             }
           },
           {
@@ -41,12 +41,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "plans/billing-software.md",
+                "file": "text/02-billing.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "billing-software"
+              "title": "02-billing"
             }
           },
           {
@@ -64,7 +64,7 @@
             }
           }
         ],
-        "currentTab": 2
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -226,44 +226,19 @@
       "bases:Create new base": false
     }
   },
-  "active": "076af8a2e63d7a30",
+  "active": "124b3e2a81adc577",
   "lastOpenFiles": [
-    "plans/billing-costs-implementation-todo.md",
-    "plans/billing-software.md",
-    "plans/billing-costs.md",
-    "one.ie/web/tests/e2e/permissions/c12-drill.test.tsx",
-    "one.ie/web/tests/e2e/permissions/c11-actas-scope.test.tsx",
-    "plans/billing-costs-implementation.md",
-    "one.ie/web/src/components/sidebar/CLAUDE.md",
-    "one.ie/web/tests/e2e/permissions/c10-tree.test.tsx",
-    "one.ie/web/tests/e2e/permissions/sibling-isolation.test.ts",
-    "one.ie/web/tests/e2e/permissions/c7-delegate.test.tsx",
-    "one.ie/web/tests/e2e/permissions/c3-remove.test.ts",
-    "plans/billing-products.md",
-    "packages/sdk/__tests__/group-ops.test.ts",
-    "one.ie/web/tests/e2e/permissions/c2-changerole.test.ts",
-    "one.ie/web/src/lib/authority.ts",
-    "one.ie/web/tests/e2e/permissions/c8-activegroup.test.ts",
-    "plans/invitations.md",
-    "one.ie/web/src/components/groups/CLAUDE.md",
-    "plans/learnings.md",
-    "plans/roles-optimisation-todo.md",
-    "api/node_modules/@oxc-project/types/README.md",
-    "api/node_modules/@rolldown/binding-darwin-arm64/README.md",
-    "api/node_modules/@rolldown/pluginutils/README.md",
-    "api/node_modules/source-map-js/README.md",
-    "api/node_modules/picocolors/README.md",
-    "api/node_modules/nanoid/README.md",
-    "api/node_modules/lightningcss-darwin-arm64/README.md",
-    "api/node_modules/assertion-error/README.md",
-    "api/node_modules/stackback/README.md",
-    "api/node_modules/siginfo/README.md",
-    "api/node_modules/rolldown/README.md",
-    "api/node_modules/postcss/README.md",
-    "api/node_modules/lightningcss/README.md",
-    "api/node_modules/fdir/README.md",
-    "api/node_modules/convert-source-map/README.md",
-    "api/node_modules/estree-walker/README.md",
+    "text/002-engine.md",
+    "one.ie/web/dist/client/_astro/Layout.DmB9yjGQ.css",
+    "one.ie/web/dist/client/_astro/motion.Ds5qE_rJ.css",
+    "one.ie/web/dist/client/_astro/design.DA0zdQn1.css",
+    "one.ie/web/dist/client/tracking/index.html",
+    "one.ie/web/dist/client/tracking",
+    "one.ie/web/dist/client/tools/index.html",
+    "one.ie/web/dist/client/tools",
+    "one.ie/web/dist/client/teams/index.html",
+    "one.ie/web/dist/client/teams",
+    "one.ie/web/dist/client/skills/index.html",
     "one.ie/web/dist/client/oo-logo-square.svg",
     "one.ie/web/dist/client/og-image.jpg",
     "one.ie/web/dist/client/logos/woocommerce.svg",
@@ -273,6 +248,31 @@
     "one.ie/web/dist/client/logos/prestashop.svg",
     "one.ie/web/dist/client/logos/openai.svg",
     "one.ie/web/dist/client/logos/one.svg",
-    "one.ie/web/dist/client/logos/mistral.svg"
+    "one.ie/web/dist/client/logos/mistral.svg",
+    "one.ie/web/dist/client/cc/cc-connect.md",
+    "plans/composio-todo.md",
+    "plans/billing-software-todo.md",
+    "one.ie/web/node_modules/@oneie/sdk/node_modules/typescript/SECURITY.md",
+    "one.ie/web/node_modules/@oneie/sdk/node_modules/typescript/README.md",
+    "plans/receiver-registry.md",
+    "plans/agent-first-a2a.md",
+    "plans/agent-first-todo.md",
+    "plans/agent-first-spec.md",
+    "plans/0000-agent-first.md",
+    "plans/receiver-registry-todo.md",
+    "plans/billing-products.md",
+    "text/02-billing.md",
+    "plans/billing-software.md",
+    "plans/billing-costs-implementation-todo.md",
+    "plans/billing-costs.md",
+    "plans/billing-costs-implementation.md",
+    "one.ie/web/src/components/sidebar/CLAUDE.md",
+    "plans/invitations.md",
+    "one.ie/web/src/components/groups/CLAUDE.md",
+    "plans/learnings.md",
+    "plans/roles-optimisation-todo.md",
+    "api/node_modules/@oxc-project/types/README.md",
+    "api/node_modules/@rolldown/binding-darwin-arm64/README.md",
+    "api/node_modules/@rolldown/pluginutils/README.md"
   ]
 }

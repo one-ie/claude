@@ -683,6 +683,155 @@ Run in order; each is idempotent:
 
 ---
 
+## Phase 7 — Complete the Customer Experience
+
+These six features were missing from Phases 1–6. They close the gap between "operational billing system" and "complete billing product."
+
+---
+
+### S7.1 — Invoice PDF download
+
+Every finalized invoice gets a downloadable PDF. B2B clients expect this. It's also the proof document for their own accounting.
+
+**Implementation:**
+- Worker-rendered HTML template → `@react-pdf/renderer` or a lightweight HTML-to-PDF edge Worker
+- Route: `GET /api/billing/invoices/:iid/pdf` → streams PDF bytes
+- Template: workspace name, billing period, line items (reason + model + quantity + amount), credits applied, total, Stripe reference
+- Linked from the Ledger UI ("Download invoice") next to each finalized invoice row
+
+**D1 addition:**
+```sql
+ALTER TABLE invoices ADD COLUMN pdf_url TEXT;  -- R2 path after generation
+ALTER TABLE invoices ADD COLUMN pdf_generated_at INTEGER;
+```
+
+**Verification:** `GET /api/billing/invoices/:iid/pdf` returns `Content-Type: application/pdf` with correct workspace + period in the metadata; invoice table shows `pdf_generated_at` set.
+
+---
+
+### S7.2 — Coupon / discount codes (Flexprice port)
+
+Direct port of Flexprice's coupon engine — the simplest part of their schema — into ONE's credit model.
+
+**D1 table:**
+```sql
+CREATE TABLE IF NOT EXISTS coupons (
+  cid            TEXT PRIMARY KEY,
+  workspace      TEXT NOT NULL,         -- issuing workspace (agency or platform)
+  code           TEXT NOT NULL UNIQUE,
+  name           TEXT NOT NULL,
+  discount_type  TEXT NOT NULL,         -- 'percentage' | 'fixed_credits'
+  discount_value REAL NOT NULL,         -- % or credits
+  cadence        TEXT NOT NULL DEFAULT 'once',  -- 'once' | 'repeating' | 'forever'
+  duration_months INTEGER,              -- for 'repeating'
+  max_redemptions INTEGER,              -- null = unlimited
+  redemptions    INTEGER DEFAULT 0,
+  valid_from     INTEGER NOT NULL,
+  valid_until    INTEGER,               -- null = no expiry
+  created_at     INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+  rid            TEXT PRIMARY KEY,
+  cid            TEXT NOT NULL REFERENCES coupons(cid),
+  workspace      TEXT NOT NULL,         -- workspace that redeemed
+  amount_off     INTEGER NOT NULL,      -- credits saved
+  applied_at     INTEGER NOT NULL,
+  invoice_id     TEXT                   -- which invoice it applied to
+);
+```
+
+**API:**
+- `POST /api/billing/coupons` — create coupon (agency/owner only)
+- `POST /api/billing/coupons/redeem` — apply coupon code to subscription
+- Applied at invoice compute time: coupon discount → `coupons_applied` on invoice
+
+**UI:**
+- Coupon input on the TopUpModal and plan checkout flow
+- Agency billing panel: coupon manager (create, view redemptions, disable)
+
+**Verification:** create a 20%-off coupon with `max_redemptions: 1`; redeem it; invoice shows discount; second redemption returns 409.
+
+---
+
+### S7.3 — Public pricing page + plan picker
+
+The customer-facing page where someone visits one.ie/pricing and subscribes. Not the same as `/billing/plans` (which is the agency management view).
+
+**Route:** `one.ie/pricing` (new Astro page)
+
+**Components:**
+- `<PlanCards>` — four columns (Free / Starter / Pro / Agency), feature comparison table, monthly/annual toggle
+- `<PlanCheckout>` — Stripe Checkout Session redirect or embedded Stripe Elements for the selected plan
+- `<CurrentPlanBadge>` — shown if already subscribed; links to `/u/[slug]/billing`
+
+**API wiring:**
+- `GET /api/billing/plans/public` — returns plan definitions (name, price, credits, features) for the pricing page; no auth required
+- `POST /api/billing/plans/subscribe` — creates Stripe Checkout Session for the plan; redirects to Stripe-hosted page
+
+**Annual billing toggle:**
+- Annual = 2 months free (16.7% discount)
+- Stripe Price objects for both monthly and annual per plan
+- Toggle persists to localStorage
+
+**Verification:** unauthenticated visitor can see pricing page; clicking "Get started" on Pro redirects to Stripe Checkout; successful payment → workspace plan updated via webhook.
+
+---
+
+### S7.4 — Cancel subscription flow
+
+Customers need a clean way to cancel. Missing cancel = churn through support email.
+
+**API:**
+- `POST /api/billing/cancel` — sets `cancel_at_period_end: true` on Stripe subscription; updates `owners.cancel_at_period_end`; emits `signal('billing:cancel_requested')`
+- `POST /api/billing/cancel/undo` — reverses if still within period; clears flag
+
+**UI:**
+- Cancel button in `/u/[slug]/billing` (plan section, owner-only)
+- `<CancelModal>` — shows what the user keeps until period end; "You'll keep N credits until [date]" (same pattern as `DowngradeImpactModal`); confirms intent
+- After cancel: banner in pool card "Subscription ends [date] — [Renew]"
+- Webhook `customer.subscription.deleted` → sets `billing_state: 'over_limit'` immediately if balance is zero
+
+**Verification:** owner cancels; `cancel_at_period_end = true` in D1; banner appears; undo clears it; Stripe subscription shows `cancel_at_period_end: true`.
+
+---
+
+### S7.5 — Trial period management
+
+`trial_start` and `trial_end` fields land in Phase 2 schema but have no management UI or enforcement logic.
+
+**API:**
+- `POST /api/billing/trial/start` — creates trial for workspace (owner-initiated or auto on signup)
+- Trial end: cron checks `owners.trial_end`; when past, if no payment method → `billing_state: 'over_limit'`; if card on file → auto-convert to paid subscription
+
+**UI:**
+- Trial banner in pool card: "Trial ends in 7 days — [Add payment method]"
+- `<TrialConvertModal>` — plan selector + Stripe Elements for payment method; converts trial to subscription on submit
+- Trial days remaining shown in the pool card `<PoolCard>` `resetInDays` slot (already exists)
+
+**Verification:** workspace created with `trial_end = now + 14d`; banner shows; Stripe payment method added + modal submitted → trial ends immediately and subscription created; no card + trial expired → `over_limit` state.
+
+---
+
+### S7.6 — Stripe Customer Portal + dunning UI
+
+**Stripe Customer Portal:**
+- One API call: `POST /api/billing/portal` → `stripe.billingPortal.sessions.create({ customer, return_url })` → redirect
+- Exposes: invoice history, payment method management, subscription management (Stripe-hosted)
+- Button in `/u/[slug]/billing`: "Manage payment method" → portal redirect
+
+**Dunning / retry management UI:**
+- Currently handled silently by cron; no user visibility
+- Add to pool card when `billing_state === 'recovering'`:
+  - "Payment failed — we'll retry in N days"
+  - "Update payment method" button → portal redirect
+  - Retry count + next attempt date (from Stripe subscription `latest_invoice.next_payment_attempt`)
+- `<DunningBanner>` component — replaces the existing `PaymentFailureBanner.tsx` (compose, don't create)
+
+**Verification:** workspace in `recovering` state shows `DunningBanner` with retry date; "Update payment method" redirects to Stripe portal; successful payment → banner disappears.
+
+---
+
 ## What NOT to Port
 
 | Reference app feature | Why skip |
@@ -701,15 +850,31 @@ Run in order; each is idempotent:
 
 ```
 Phase 0   C1-C5 (already planned, billing-costs-implementation.md)
-Phase 1   Invoice engine    — S1.1 → S1.2 → S1.3         (2-3 days)
-Phase 2   Proration+expiry  — S2.1 → S2.2                 (1-2 days)
-Phase 3   Entitlements      — S3.1 → S3.2 → S3.3 → S3.4  (2-3 days)
-Phase 4   Tiered pricing    — S4.1 → S4.2 → S4.3          (3-4 days)
-Phase 5   Meter engine      — S5.1 → S5.2 → S5.3 → S5.4  (2-3 days)
-Phase 6   Agency dashboard  — S6.1 → S6.2 → S6.3          (2 days)
+
+Batch 1 — Foundation
+  C1  Schema migrations (invoices, entitlements, meters, pricing_tiers, grant_expiry)  (1 day)
+
+Batch 2 — Service layer (all parallel after C1)
+  C2  Invoice engine           — S1.2 + S1.3  (2 days)
+  C3  Proration + credit FIFO  — S2.1 + S2.2  (1 day)
+  C4  Entitlement enforcement  — S3.2 + S3.3  (1 day)
+  C5  Tiered pricing engine    — S4.2          (1 day)
+  C6  Meter aggregation        — S5.2 + S5.3  (2 days)
+
+Batch 3 — UI + customer-facing (all parallel after Batch 2)
+  C7  CostTree agency dashboard      — S6.1 + S6.2  (2 days)
+  C8  Public pricing page + checkout — S7.3          (2 days)
+  C9  Cancel + trial flows           — S7.4 + S7.5  (1 day)
+  C10 Plan template builder UI       — S4.3          (1 day)
+
+Batch 4 — Final features
+  C11 Invoice PDF + coupons              — S7.1 + S7.2  (2 days)
+  C12 Stripe Portal + dunning UI         — S7.6          (1 day)
+  C13 Entitlement UI + meter query API   — S3.4 + S5.4  (1 day)
 ```
 
 **Total: ~3 weeks of focused construction on top of the existing foundation.**
+**Result: complete billing product — backend, frontend, credit system, plans, subscriptions, invoices, coupons, trial, cancel, dunning.**
 
 Each phase closes with a deterministic number (Rule 3). Each signal emitted closes the loop (Rule 1).
 No new verbs — billing participates in the existing `signal/mark/warn/fade` system (Rule 2).
@@ -737,3 +902,18 @@ When starting a cycle, read these files for the algorithm before writing any Typ
 
 *One ledger. Four reference apps. Three weeks. The substrate already knows what to charge — we're
 giving it the vocabulary to say so precisely.*
+
+---
+
+## Build status — 2026-05-29 (all 9 cycles shipped)
+
+The full system is built and locally proven (`tsc --noEmit` = 0 · 51 vitest in `one.ie/web/tests/billing/*`). See `plans/billing-software-todo.md` for the cycle-by-cycle record and carry-forward decisions. Engine + surfaces:
+
+- **Ledger (C1):** migrations 0076–0081 (invoices, coupons, entitlements+meters, pricing_tiers, grants ALTER, owners ALTER).
+- **Three verbs + document (C2–C5):** `src/lib/billing/{grant,burn,gate,invoice}.ts` (+ `index.ts`).
+- **Pricing (C6):** `/pricing` + `PlanCards` + `plans/{public,subscribe}`.
+- **Lifecycle (C7):** trial / cancel / cancel-undo as `action=` branches on `api/billing.ts` (portal reused); `CancelModal`, `TrialConvertModal`, dunning `retryAt` on `PaymentFailureBanner`, trial slot in `PoolCard`, trial-expiry cron; pure core `lib/billing/lifecycle.ts`.
+- **Client surface (C8):** dependency-free `lib/pdf.ts` → `GET /api/billing/invoices/:iid/pdf`; `/entitlements`; `/coupons/redeem`; `EntitlementBar` slot in `PoolCard`; `/u/[slug]/billing/invoices` list; Invoices tab.
+- **Agency surface (C9):** recursive-CTE `GET /api/billing/costs`; `plan-templates` create/list/assign (keyed `tmpl:<agency>:<name>`); coupon issue; `CostTree` + `CouponManager`; template panel in `AgencyPlansManager`; `/u/[slug]/billing/costs` + Costs tab.
+
+Every new workspace route is tenant-scoped (derive from `ctx.workspace`; param allowed only if in `ctx.descendants`; else 403). **Remaining = deploy** (the plan `outcome:` hits live one.ie/api.one.ie) + minor wiring (entitlement middleware, tiered rateFor live path, /pricing nav link).

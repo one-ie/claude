@@ -178,3 +178,55 @@
 
 ## 2026-05-28T16:39:57Z
 - **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T11:42:04Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T11:43:04Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T11:52:35Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T11:57:30Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T12:00:31Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T12:00:58Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T15:11:13Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T15:15:56Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T15:18:00Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T15:20:38Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T15:25:35Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T15:29:13Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-29T15:31:02Z
+- **convention** `.claude/skills/composio/SKILL.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/composio/rules/sequences/` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
