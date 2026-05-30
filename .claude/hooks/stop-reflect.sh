@@ -73,6 +73,18 @@ check_drift '^packages/sdk/src/'   'packages/sdk/CLAUDE.md'
 check_drift '^one\.ie/web/src/'    'one.ie/web/CLAUDE.md'
 check_drift '^api/src/'            'api/CLAUDE.md'
 
+# (4) Completed /do cycle → suggest /skill-create to crystallise the pattern.
+# Heuristic: learnings.md was touched AND W3 edited >=3 non-plan/non-text files.
+if echo "$CHANGED" | grep -qF 'plans/learnings.md'; then
+  CYCLE_FILES=$(echo "$CHANGED" | grep -vE '^plans/|^text/|^\.claude/' | wc -l | awk '{print $1}')
+  if [ "$CYCLE_FILES" -ge 3 ]; then
+    # Extract the cycle slug from the last learnings entry
+    CYCLE_SLUG=$(grep -oE 'cycle [0-9]+|· [a-z][a-z0-9-]+' plans/learnings.md 2>/dev/null | tail -1 | sed 's/^· //')
+    BUF+="- **skill-create** cycle closed with ${CYCLE_FILES} file(s) changed — run \`/skill-create ${CYCLE_SLUG}\` to crystallise the pattern as a reusable skill.\n"
+    PROPOSALS=$((PROPOSALS + 1))
+  fi
+fi
+
 # Only write the file if we found something worth reviewing
 if [ "$PROPOSALS" -gt 0 ]; then
   {
