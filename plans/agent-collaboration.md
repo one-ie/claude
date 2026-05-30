@@ -6,6 +6,73 @@
 
 ---
 
+## Signal flow — the substrate contract
+
+Every `ask` and `signal` call walks the same path. This is what happens, in order, every time:
+
+```
+1. Receive
+   POST /api/ask/{receiver}  or  POST /api/signal/{receiver}
+   Body: { data: Record<string, unknown> }
+
+2. Gateway guard
+   isGatewayRequest() — Bearer token, one.ie origin, or X-Gateway-Key.
+   No credential → 403 before any substrate work.
+
+3. Envelope
+   splitEnvelope(data) → { idempotencyKey?, simulate, payload }
+   idempotencyKey present → replay prior result from KV; skip all below.
+   simulate: true → return projected payload, commit nothing.
+
+4. Validate
+   validateReceiver(receiver, payload) against RECEIVERS catalog.
+   Declared receiver + bad payload → 400 { error, field, hint, example }.
+   Unknown receiver → payload passes through unchanged (escape hatch).
+
+5. Toxic check  (ask route only — synchronous; signal route uses isToxicFast)
+   isToxic(env, "entry", receiver-prefix)
+   Resistance ≥ 10 AND resistance > strength × 2 AND total > 5 → dissolved immediately.
+
+6. Dispatch
+   dispatchReceiver(receiver, payload, env, ctx):
+     world:*   → dispatchWorldReceiver     D1 mutations
+     meta:*    → dispatchMetaReceiver      catalog projection
+     RESOLVERS → in-process handler        D1 + TypeDB gateway
+     null      → dissolved { no_handler }  instant, never a 10s hang
+
+7. Outcome
+   result    → idempotentRecord(key, result); return { outcome: "result", result }
+   failure   → { outcome: "failure", result: { error, forbidden? } }
+   dissolved → { outcome: "dissolved", reason }
+   (timeout is only possible on the legacy awaitOutcomeHttp path, now unreachable in prod)
+```
+
+**The four outcomes and their pheromone effect:**
+
+| Outcome | Pheromone | When |
+|---|---|---|
+| `result` | `mark(path, strength)` — path strengthens | Handler returned a value |
+| `timeout` | neutral | Handler was slow; not the receiver's fault |
+| `dissolved` | `warn(path, 0.5)` — mild resistance | No handler; capability missing |
+| `failure` | `warn(path, 1.0)` — full resistance | Handler threw; forbidden |
+
+Pheromone is asymmetric: resistance decays at 2× the rate of strength (`fade-rate` on the group, default 0.05/tick). A bad actor's path recovers. A good actor's path compounds. After 50 successful signals on the same path, TypeDB infers a highway — routing resolves in KV (<10ms) instead of a gateway round-trip.
+
+**Current performance profile (prod, 2026-05-30):**
+
+| Step | Time |
+|---|---|
+| Gateway guard + envelope | <10ms |
+| Toxic check (BrainDO fast path) | <5ms |
+| D1 handler (market:list, groups:members) | 0.4–1s |
+| KV cache hit (stats:current warm) | 0.26s |
+| TypeDB gateway round-trip (cold) | 1–4s |
+| TypeDB gateway round-trip (warm isolate) | ~300ms |
+| peer:message (channels /signal/:group) | ~2s |
+| Unhandled receiver (instant dissolve) | <20ms |
+
+---
+
 ## The core insight
 
 The substrate already encodes the collaboration model. `group.visibility` is `private/group/public`. `path.scope` is `private/group/public`. `signal.scope` is `private/group/public`. `bridge-kind` on paths is `federation/export/escrow`. The schema was built for this.

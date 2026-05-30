@@ -1,5 +1,20 @@
 # Agent Communication
 
+> **Archived 2026-05-30.** This document describes the nanoclaw in-memory runtime
+> (`world()`, `net.add()`, `.on()`, `.then()`), which no longer exists.
+> Every endpoint, type, and performance number is stale and will mislead.
+>
+> **Read instead:**
+> - Signal flow, four outcomes, pheromone contract → `plans/agent-collaboration.md § Signal flow`
+> - Permission model, groups, tag pub/sub, federation → `plans/agent-collaboration.md`
+> - Typed receiver catalog → `plans/agent-first-spec.md`
+> - Six verbs, signal grammar → `plans/dsl.md`
+>
+> The conceptual sections on four outcomes and asymmetric pheromone decay are still
+> accurate. The code examples are not — do not follow them.
+
+---
+
 How signals flow through the ONE substrate. Deterministic routing, pheromone learning, closed loops.
 
 ---
