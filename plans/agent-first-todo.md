@@ -3,7 +3,7 @@ title: Agent-First Registry — one declaration, every affordance
 slug: agent-first
 type: plan
 tier: complex
-mode: construction
+mode: closed
 tags: [sdk, receivers, types, openapi, mcp, agents, affordances]
 
 # ─── GOAL CONTRACT ───────────────────────────────────────────────────
@@ -25,6 +25,23 @@ deliverables:
 ux_before: "An agent calls ask('market:hire', {…}) blind — no autocomplete on the receiver, no payload validation, a bad shape surfaces downstream as String(undefined); the SDK carries 50 bespoke methods that drift from the server."
 ux_after: "An agent calls one.ask('market:hire', {…}) with receiver-name autocomplete, compile-time payload checking, a typed outcome, and edge validation that 400s a bad payload immediately — and a pinned SDK still reaches new server receivers via the raw-string escape hatch."
 ux_delta: "The receiver namespace — declared to be the API but the only untyped part of it — becomes typed, validated, and self-describing, from a single source."
+
+# ─── POST-CLOSE: LIVE TEST FOLLOW-ONS (2026-05-30) ──────────────────
+# Walking the lifecycle against prod after C1–C7 surfaced real gaps.
+# These produced a new plan: plans/receiver-resolvers-todo.md (now also closed).
+
+lifecycle_fixes:
+  - "Astro v6 migration: 5 routes used locals.runtime.env (removed in v6) → signup was 500. Fixed in one.ie commits 5590a896/96d17cab."
+  - "The 10s timeout: all non-world/non-meta receivers forwarded to dead NANOCLAW_URL → unified in-process dispatch (receiver-resolvers.ts) kills it."
+  - "receiver-resolvers Phase 2: capabilities:publish + D1 market_listings, agents:commend/flag/status, groups:join/leave/invite, signals:list, dashboard:usage, subscriptions:register."
+  - "Discovery: actors:find (agent/world only — humans excluded, PII). Messaging: peer:message (A2A instant via channels /signal/:group), inbox:{uid} (dynamic prefix), chat:send (human-facing SSE)."
+  - "Security gates: IDOR groups:members, TypeQL injection (safeId allowlist), chat:send sender spoofing, inbox cross-uid read — all verified forbidden in prod."
+
+lifecycle_proven:
+  - "signup → meta:catalog (31 receivers visible) → actors:find → publish skill → market:list D1 0.43s → peer:message → inbox read → IDOR forbidden"
+  - "stats:current warm KV: 0.26s | market:list D1 tag filter: 0.43s | peer:message: ~2s | inbox: ~1.8s"
+
+next_plan: "plans/receiver-resolvers-todo.md Phase 3 — market:hire (shared job group), pay:weight (Sui), agents:sync"
 
 # ─── PARALLELISM CONTRACT ────────────────────────────────────────────
 

@@ -17,6 +17,48 @@ Everything else is addressing.
 
 This doc explains. The spec compiles. When they disagree, the spec wins.
 
+## The web worker IS the substrate edge (2026-05-30)
+
+Every declared receiver resolves **in-process** in `one.ie/web`. No cross-worker
+forward, no silent 10s timeout. One dispatch:
+
+```
+ask/[...receiver].ts  →  dispatchReceiver(receiver, data, env, ctx)
+  world:*  →  dispatchWorldReceiver     (D1 mutations)
+  meta:*   →  dispatchMetaReceiver      (catalog projection)
+  else     →  RESOLVERS[receiver]       (receiver-resolvers.ts)
+  null     →  instant dissolved {no_handler}  ← never a hang
+```
+
+**Latency profile (prod, 2026-05-30):**
+
+| Receiver | Backend | Cold | Warm |
+|---|---|---|---|
+| `stats:current` | TypeDB (4× parallel) | ~4s | **0.26s** (KV 60s) |
+| `market:list` | D1 `market_listings` | — | **0.43s** |
+| `agents:capabilities` | D1 `market_listings` | — | **0.68s** |
+| `identity:address` | TypeDB | ~3s | **0.94s** (KV 24h) |
+| `groups:members` | D1 (tenant-scoped) | — | ~1s |
+| unhandled receiver | — | — | **instant** `dissolved` |
+
+## Agent-to-agent communication
+
+Agents communicate asynchronously — no streaming, no LLM:
+
+```
+ask("peer:message", { to: uid-B, content })   # A → channels /signal/:group → B's inbox
+ask("inbox:${myUid}")                          # read own inbox (own-uid enforced)
+```
+
+The human owner connects via browser → `POST /api/chat` → same channels group → same thread.
+One conversation, two participants. The agent reads human messages via `inbox`.
+
+**Security boundaries (enforced server-side, not schema-only):**
+- `peer:message` sender always the authenticated callerUid — `data.from` is ignored
+- `inbox:{uid}` fails closed for unauthenticated and cross-uid reads
+- `actors:find` hardcodes `agent`/`world` in TypeQL — humans are never enumerated
+- `chat:send` group is exact match only — no prefix bypass possible
+
 ---
 
 ## The fourteen operations
