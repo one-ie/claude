@@ -122,7 +122,7 @@ For each **enabled** stop (per the pruned spine), in order: check if its artifac
 | ↳ *ANALYZE* | — | `do-analyze.sh plans/<slug>-todo.md` — CRITICAL exit 1 blocks BUILD | bash · none |
 | **code** | survey verdict = `build` (≥70% match → `expose`/`extend` instead) | the BUILD engine (Step 3) | sonnet · low–medium |
 | **tests** | test file in the repo folder | test-first, one assertion per deliverable | sonnet · low |
-| **proof** | proof artifact captured | `do-prove.sh` (browser / curl / contract / sync) + `accessibility`; **promise-check** the shipped thing against `text/<slug>.md`; FEATURE/SCHEMA built in a worktree → **merge to trunk only on PROVE pass**, abandon on fail | sonnet · low |
+| **proof** | proof artifact captured | `do-prove.sh` (browser / curl / contract / sync) + `accessibility`; **promise-check** the shipped thing against `text/<slug>.md`. A multi-cycle plan already built on its own `do/<slug>` branch (worktree isolation — see Step 2); PROVE is the gate that branch must clear before a human merges it to trunk | sonnet · low |
 | **docs** | feature doc + runbook exist | `tutorial` + `writer` — written against the *proven* behavior | sonnet · medium |
 | **release** | changelog / README row | `/release` + adoption signal | sonnet · low |
 
@@ -162,6 +162,8 @@ bun .claude/scripts/do-auto.sh <slug>
 ```
 
 `do-auto.sh` loops: each iteration spawns a clean `/do <slug> --next-cycle` that runs exactly one batch (W1→W4), ticks its boxes, writes state, and exits. Because each cycle starts from near-zero context, prior-cycle recon/edit/verify chatter never accumulates. The main session just kicks off the loop and reports the close.
+
+**Worktree isolation comes free with the loop.** The loop's existence *is* the trigger — `do-auto.sh` only runs for multi-cycle plans, which is exactly the FEATURE/SCHEMA work that must not land half-built on trunk. So before the first cycle it cuts a worktree `.do-worktrees/<slug>` on branch `do/<slug>` (reusing it on resume), syncs the plan's spine artifacts into it, and runs **every cycle inside it** — each cycle's edits and box-ticks commit to that branch. Trunk never moves while the loop runs; a halt (trust `cautious` / stall / max-cycles) leaves a clean, inspectable WIP branch, and re-running `/do <slug>` resumes in the same worktree. On plan-complete the loop **reports** the merge (`git merge --no-ff do/<slug>`) rather than running it — landing to trunk is a human decision (commit only when asked), and PROVE is the gate that branch cleared to earn the merge. PATCH/FIX never reach the loop, so they run inline with no worktree.
 
 A **single** incomplete cycle (or a PATCH/FIX) runs inline — there's nothing to isolate from, and spawning a subprocess would cost more than it saves.
 
@@ -266,7 +268,7 @@ PATCH clears {1,2,3,8}. FEATURE clears all eight.
 
 ## Available to /do — the toolbox
 
-**Scripts** (`.claude/scripts/`): `do-auto.sh` (*internal* — the context-isolated loop `/do` drives for multi-cycle plans) · `do-tier.sh` (tier + pruned spine + classifier + ceiling) · `do-folder.sh` (folder-aware verify/build) · `do-survey.sh` (reuse verdict) · `do-reconcile.sh` (substrate dim/verb/dead-name gate) · `do-analyze.sh` (deliverable↔cycle coverage gate) · `do-prove.sh` (surface-detect proof) · `do-smoke.sh` (deterministic outcome) · `w1-recon.ts` (prompt-cached recon) · `w4-rubric.ts` (cached parallel rubric).
+**Scripts** (`.claude/scripts/`): `do-auto.sh` (*internal* — the context-isolated, worktree-isolated loop `/do` drives for multi-cycle plans; builds on branch `do/<slug>`, merges to trunk only on a human's say-so) · `do-tier.sh` (tier + pruned spine + classifier + ceiling) · `do-folder.sh` (folder-aware verify/build) · `do-survey.sh` (reuse verdict) · `do-reconcile.sh` (substrate dim/verb/dead-name gate) · `do-analyze.sh` (deliverable↔cycle coverage gate) · `do-prove.sh` (surface-detect proof) · `do-smoke.sh` (deterministic outcome) · `w1-recon.ts` (prompt-cached recon) · `w4-rubric.ts` (cached parallel rubric).
 
 **Templates**: `text/template-frame.md` (promise) · `plans/template-spec.md` (design + pre-mortem + decisions) · `plans/template-todo.md` (plan + parallel budget + testing policy) · `plans/agent-template.md` (agent definition).
 

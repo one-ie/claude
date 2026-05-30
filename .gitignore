@@ -22,3 +22,7 @@
 .w4-improvements.json
 .compress-*.txt
 .recon-*.json
+.do-trust.json
+
+# /do multi-cycle loop worktrees (one per plan, branch do/<slug>)
+.do-worktrees/

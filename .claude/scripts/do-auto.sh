@@ -40,15 +40,73 @@ fi
 # claude subprocess uses --dangerously-skip-permissions because it is non-interactive
 # — it cannot prompt the human for tool approvals. The workspace is the isolation
 # boundary. Do not expose this script to untrusted input or run it in shared environments.
-TODO="plans/${SLUG}-todo.md"
-TRUST=".do-trust.json"
+[ -f "plans/${SLUG}-todo.md" ] || { echo "[do-auto] plans/${SLUG}-todo.md not found — run /do $SLUG first" >&2; exit 1; }
 
-[ -f "$TODO" ] || { echo "[do-auto] $TODO not found — run /do $SLUG first" >&2; exit 1; }
+# ── Worktree isolation (one per plan) ────────────────────────────────────────
+# The loop's existence IS the trigger: do-auto only runs for multi-cycle plans
+# (>=2 incomplete cycles) = exactly the FEATURE/SCHEMA work that must not land
+# half-built on trunk. So every loop builds in its own worktree on branch
+# do/<slug>, leaving trunk green until a human merges. No tier plumbing, no flag.
+#
+# Why a worktree and not just a branch: the main session keeps observing trunk
+# while the loop's subprocesses build in a separate checkout — they never fight
+# over HEAD or the working tree. A halt leaves a clean, inspectable WIP branch.
+#
+#   trunk (BASE) ── never moves during the loop
+#        └─ do/<slug>  (worktree .do-worktrees/<slug>) ── every cycle commits here
+#   plan complete → report `git merge do/<slug>`  (human lands it — never auto)
+#   halt          → worktree persists → re-run /do <slug> resumes in place
+BASE="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+BR="do/${SLUG}"
+WT=".do-worktrees/${SLUG}"
+
+_setup_worktree() {
+  # Idempotent: reuse an existing worktree (resume), else attach one to an
+  # existing branch (prior halt), else create branch+worktree fresh from HEAD.
+  if git -C "$WT" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "[do-auto] resuming worktree $WT on $BR"
+  elif git show-ref --verify --quiet "refs/heads/$BR"; then
+    echo "[do-auto] re-attaching worktree $WT to existing branch $BR"
+    git worktree add "$WT" "$BR" >/dev/null
+  else
+    echo "[do-auto] creating worktree $WT on new branch $BR (from $BASE)"
+    git worktree add -b "$BR" "$WT" HEAD >/dev/null
+  fi
+
+  # Carry the plan's own artifacts into the worktree. The spine walk may have
+  # just written promise/spec/todo uncommitted in the main tree; a worktree cut
+  # from HEAD wouldn't have them. Copy only this slug's files — never unrelated
+  # working-tree changes — then commit them as the branch baseline.
+  local f changed=0
+  for f in "plans/${SLUG}.md" "plans/${SLUG}-todo.md" "text/${SLUG}.md" ".w4-improvements.json"; do
+    if [ -f "$f" ]; then
+      mkdir -p "$WT/$(dirname "$f")"
+      if ! cmp -s "$f" "$WT/$f" 2>/dev/null; then cp "$f" "$WT/$f"; changed=1; fi
+    fi
+  done
+  if [ "$changed" -eq 1 ]; then
+    git -C "$WT" add -A
+    git -C "$WT" commit -q -m "do(${SLUG}): sync spine artifacts" 2>/dev/null || true
+  fi
+}
+
+if ! $DRY_RUN; then
+  _setup_worktree
+  # All loop state now lives in the worktree — read the boxes the subprocess ticks.
+  TODO="$WT/plans/${SLUG}-todo.md"
+  TRUST="$WT/.do-trust.json"
+else
+  TODO="plans/${SLUG}-todo.md"
+  TRUST=".do-trust.json"
+fi
 
 _remaining() {
   # Count cycles in the Status section that are open ([ ]) or in-flight ([~]) — i.e. not [x].
   # Pattern starts with '\[' (not '-') so grep never mistakes it for an option flag.
-  grep -cE '\[[ ~]\] C[0-9]+' "$TODO" 2>/dev/null || echo 0
+  # grep -c already prints a count (0 on no match) but exits 1 then — capture it so
+  # the `|| true` swallows the exit without appending a second "0" to the output.
+  local n; n=$(grep -cE '\[[ ~]\] C[0-9]+' "$TODO" 2>/dev/null) || true
+  echo "${n:-0}"
 }
 
 _trust() {
@@ -82,6 +140,7 @@ while [ "$i" -lt "$MAX_CYCLES" ]; do
     if [ "$stall" -ge 2 ]; then
       echo "[do-auto] no progress for 2 iterations (${remaining} cycle(s) stuck) — halting." >&2
       echo "[do-auto] The last cycle ticked no checkbox. Inspect $TODO, fix the blocker, then re-run /do $SLUG." >&2
+      echo "[do-auto] WIP preserved on branch $BR (worktree $WT)." >&2
       exit 1
     fi
   else
@@ -92,6 +151,7 @@ while [ "$i" -lt "$MAX_CYCLES" ]; do
   trust=$(_trust)
   if [ "$trust" = "cautious" ]; then
     echo "[do-auto] trust=cautious — halting. Fix the issue, then re-run /do $SLUG."
+    echo "[do-auto] WIP preserved on branch $BR (worktree $WT)."
     exit 1
   fi
 
@@ -107,11 +167,31 @@ while [ "$i" -lt "$MAX_CYCLES" ]; do
     break
   fi
 
-  # Fresh context: no --resume, no --continue. Each cycle is a clean slate.
-  claude --dangerously-skip-permissions -p "/do $SLUG --next-cycle"
+  # Fresh context, isolated tree: the subprocess runs INSIDE the worktree, so
+  # every edit/box-tick/state-write lands on branch $BR — trunk is never touched.
+  ( cd "$WT" && claude --dangerously-skip-permissions -p "/do $SLUG --next-cycle" )
+
+  # Commit the cycle on its branch. A cycle closes with a passing rubric, so it
+  # is the natural commit unit — and committed progress survives a later halt.
+  if [ -n "$(git -C "$WT" status --porcelain)" ]; then
+    git -C "$WT" add -A
+    git -C "$WT" commit -q -m "do(${SLUG}): cycle ${i}" || true
+  fi
 done
+
+if $DRY_RUN; then exit 0; fi
 
 if [ "$i" -ge "$MAX_CYCLES" ]; then
   echo "[do-auto] hit --max-cycles $MAX_CYCLES — halting"
+  echo "[do-auto] WIP preserved on branch $BR (worktree $WT)."
   exit 1
 fi
+
+# Plan complete. The branch holds every cycle, proven and committed; trunk is
+# untouched. Landing it is a human decision (commit/push only when asked), so we
+# report the merge instead of running it — the worktree stays for inspection.
+echo ""
+echo "[do-auto] ✓ plan complete on branch $BR — trunk ($BASE) untouched."
+echo "[do-auto]   land:    git merge --no-ff $BR        # from $BASE"
+echo "[do-auto]   inspect: git -C $WT log --oneline $BASE..$BR"
+echo "[do-auto]   discard: git worktree remove $WT && git branch -D $BR"
