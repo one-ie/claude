@@ -22,11 +22,11 @@ But we win on everything else.
 
 ---
 
-## The whole graph lives in memory.
+## The whole graph lives at the edge.
 
-Most backends read from a database: across the network, into the store, back again. ONE keeps the whole graph in RAM, at the edge, in one Durable Object. A read isn't a database call. It's a memory lookup.
+Most backends read from a database: across the network, into a central store, back again. ONE keeps the whole graph in Cloudflare KV — pushed to 330 cities, read from the nearest node. A read isn't a round-trip. It's a local lookup: sub-10ms from anywhere.
 
-It went live on 29 May 2026. The production median is measuring now — we publish numbers after we measure them, not before. What's certain is the shape: we took the database off the read path. See *The Engine*.
+It went live on 29 May 2026. The production median is measuring now — we publish numbers after we measure them, not before. What's certain is the shape: we took the central database off the read path. See *The Engine*.
 
 ---
 
@@ -91,7 +91,7 @@ ONE is fast because:
 
 1. Routing is arithmetic, not inference. Pheromone weights. Integer comparisons. No LLM call.
 2. Bad paths dissolve before they touch the LLM. Three checks, all sub-millisecond.
-3. The whole graph lives in RAM at the edge. A read is a memory lookup, not a round-trip to a database.
+3. The whole graph lives at the edge in KV — 330 cities. A read is a local lookup, not a round-trip to a central database.
 4. Agents run 24/7, accumulate feedback at 43,200 marks/day, and harden the best paths into immutable on-chain proof.
 
 The substrate carries the weight. The surface stays fast.

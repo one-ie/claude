@@ -233,13 +233,15 @@ Two dials, set per agent. **Model** = cheapest that can decide. **Effort** = low
 Full per-stage routing in `plans/templates.md`.
 
 ```
-W1 recon      Haiku · low      × N parallel    skip if ≤5 files (inline)
-W2 decide     Opus · high      architectural   Opus · xhigh if substrate/schema
-              Sonnet · medium  mechanical       inline if trivial
-W3 edit       Sonnet · low     mechanical edit  × N parallel, single message
+W1 recon      bash · none      cache check       0 tokens on hit (saves ~12k vs live call); 14-day TTL
+              Haiku · low      SDK on miss       ~5,400-token prefix cached; saves ~4,900/call vs no-cache (40%)
+              (inline)         ≤5 files          no agent spawn — read inline
+W2 decide     Opus · high      architectural     Opus · xhigh if substrate/schema
+              Sonnet · medium  mechanical         inline if trivial
+W3 edit       Sonnet · low     mechanical edit   × N parallel, single message
               Sonnet · medium  genuine restructure
 W4 verify     bash · none      `bun vitest run`  0 LLM tokens
-              Haiku · medium   × 5 rubric        ONLY if verify fails AND tier=complex
+              Haiku · medium   × 6 rubric        SDK: ~10,900-token block cached; saves ~46k tokens/run (70%)
 demo gate     bash · none      test exit code    0 tokens
 ```
 
@@ -251,7 +253,7 @@ Cycle closes autonomously when:
 - `bun run verify` exits 0
 - `delta_tsc_errors ≤ 0`
 - Cycle's `demo.command` exits 0
-- Rubric composite ≥ 0.65 (W4 — inline for simple/trivial, 5-agent spawn only on complex)
+- Rubric composite ≥ 0.65 (W4 — inline for simple/trivial, 6-Haiku SDK script for complex with spec block cached)
 
 Any one fails → cycle stops, root cause filed, **no user prompt unless trust=cautious or W4 loops > 3**.
 
@@ -596,7 +598,7 @@ W2 fills in the anchors. Mark which edits are independent vs dependent.
 
 If all edits are independent, leave W3b empty — empty W3b = one fewer round-trip.
 
-### W4 — Verify  [Haiku×5 if complex · inline composite if simple/trivial]
+### W4 — Verify  [Haiku×6 SDK-cached if complex · inline composite if simple/trivial]
 
 - [ ] `bun run verify` green (biome + tsc + vitest)
 - [ ] `delta_tsc_errors ≤ 0` (hard gate — no new type errors introduced)
@@ -645,7 +647,7 @@ Report: `delta_tsc=±N  delta_loc=±N  compress_orphans=N  new_files=N  primitiv
 **W3b:**
 *(empty — all edits independent)*
 
-### W4 — Verify  [Haiku×5 if complex · inline if simple/trivial]
+### W4 — Verify  [Haiku×6 SDK-cached if complex · inline if simple/trivial]
 
 - [ ] `bun run verify` green
 - [ ] {specific check}

@@ -153,21 +153,21 @@ The plumber does not notice the latency. The plumber notices that the assistant 
 
 ---
 
-## The data layer: every read from memory
+## The data layer: every read from the edge
 
 This is the architecture decision underneath all eight numbers.
 
-Most backends store data in a database and fetch it on every read. The read crosses the network, hits the store, comes back. Twenty milliseconds on a good day, before the application does anything with the answer. That round trip is what users feel as waiting.
+Most backends store data in a database and fetch it on every read. The read crosses the network, hits a central store, comes back. Twenty milliseconds on a good day, before the application does anything with the answer. That round trip is what users feel as waiting.
 
-ONE keeps the whole graph in memory. Every actor, every path, every weight lives in RAM inside a single Cloudflare Durable Object, at the edge, next to the code that reads it. A read is not a database call. It is a lookup in memory. We did not make the round trip faster. We removed it.
+ONE keeps the whole graph at the edge. Every actor, every path, every weight lives in Cloudflare KV — pushed to 330 cities, read from the nearest node. A read is not a round trip to a central database. It is a local lookup: sub-10ms from anywhere. We did not make the round trip faster. We removed it.
 
-The graph fits with room to spare. A Durable Object holds 128 MB of RAM. The graph is about 1.3 MB at ten thousand connections, around 12 MB at a hundred thousand. Headroom at any size an agency reaches.
+The graph fits easily. About 1.3 MB at ten thousand connections, around 12 MB at a hundred thousand. Headroom at any size an agency reaches.
 
-Three layers keep it honest. **TypeDB** is the brain: the typed graph, the source of truth, where everything is written for good. **Cloudflare KV** is the snapshot: a copy in 330 cities, so a restart reloads in about ten milliseconds, not from across an ocean. **The Durable Object** is the memory: the live graph that answers every read. Truth, snapshot, memory. The slow store is never on the path the user waits on.
+Three layers keep it honest. **TypeDB** is the brain: the typed graph, the source of truth, where everything is written for good. **Cloudflare KV** is the read layer: a copy in 330 cities, sub-10ms from anywhere on the planet. **The Durable Object** is the write authority: single-threaded, so a write is visible to the next read without a race — and it runs the WebSocket hub, pushing changes to every connected screen the instant they land. Truth, edge reads, write authority. The slow store is never on the path the user waits on.
 
-Writes patch memory and return at once. The write to the brain batches behind it, in a 100-millisecond window, so a hundred changes become one transaction. The "is this path safe?" check used to be a cache read or a query to the brain, with a verdict up to five minutes stale. Now it is a set lookup in memory, always current. The answer is there before the question finishes.
+Writes go through the authority and return at once. The write to the brain batches behind, in a 100-millisecond window, so a hundred changes become one transaction. The "is this path safe?" check used to be a cache read or a query to the brain, with a verdict up to five minutes stale. Now it is a KV read at the nearest edge node, always current. The answer is there before the question finishes.
 
-**What's measured, and what's next.** The in-memory graph went live in production on 29 May 2026. The before is known: a read crossed the network to KV (sub-10ms) or to the brain (tens of milliseconds). The after is a memory lookup with no round trip. We are measuring the production median now and will add it to the table at the top of this page, dated, like every other number here. We do not publish a speed number before we have measured it. That rule is why the other eight hold up. See *The Engine* (page 002) for the full architecture.
+**What's measured, and what's next.** The edge-local read architecture went live in production on 29 May 2026. The before is known: a read crossed the network to KV (sub-10ms) or to the brain (tens of milliseconds). The after is a KV read from the nearest of 330 edge nodes — sub-10ms with no round trip to a central server. We are measuring the production median now and will add it to the table at the top of this page, dated, like every other number here. We do not publish a speed number before we have measured it. That rule is why the other eight hold up. See *The Engine* (page 002) for the full architecture.
 
 ---
 
@@ -314,7 +314,7 @@ The 3-minute figure is for a motivated user following the default path. An exper
 
 ## Why speed claims are usually vanity, and why these are not
 
-Brad has heard speed claims before. Every platform says it is fast. Most cannot tell you what surface they measured, on what hardware, at what time, with what sample size.
+Every platform says it is fast. Most cannot tell you what surface they measured, on what hardware, at what time, with what sample size.
 
 The objection is reasonable: speed claims are vanity.
 
