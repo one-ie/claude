@@ -29,6 +29,17 @@ done
 
 [ -z "$SLUG" ] && { echo "usage: do-auto.sh <slug> [--max-cycles N] [--dry-run]" >&2; exit 1; }
 
+# Validate slug is safe (kebab-case only) before it touches any shell string.
+# Prevents command injection if the slug ever contains metacharacters.
+if ! printf '%s' "$SLUG" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9_-]*$'; then
+  echo "[do-auto] unsafe slug (must be alphanumeric + hyphens/underscores): $SLUG" >&2; exit 1
+fi
+
+# Trust boundary: this script runs in the developer's own workspace, invoked by /do
+# which resolves the slug from a plans/ file the developer controls. The spawned
+# claude subprocess uses --dangerously-skip-permissions because it is non-interactive
+# — it cannot prompt the human for tool approvals. The workspace is the isolation
+# boundary. Do not expose this script to untrusted input or run it in shared environments.
 TODO="plans/${SLUG}-todo.md"
 TRUST=".do-trust.json"
 
