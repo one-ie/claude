@@ -27,10 +27,12 @@ echo "== C9 do-survey =="
 "$S/do-survey.sh" zxqwfoobar 2>/dev/null | grep -q 'VERDICT: build' && ok "novel → build" || no "novel"
 "$S/do-survey.sh" signal 2>/dev/null | grep -qE 'VERDICT: (extend|expose)' && ok "existing → extend/expose" || no "existing"
 
-echo "== C14 do-analyze =="
-"$S/do-analyze.sh" plans/do-loop-todo.md >/dev/null 2>&1 && ok "this plan → 100% coverage" || no "plan coverage"
-tmp=$(mktemp); printf 'deliverables:\n  - D1 x (C1)\n  - D2 orphan no cycle\n## C1 — y\n' > "$tmp"
-"$S/do-analyze.sh" "$tmp" >/dev/null 2>&1 && no "uncovered should fail" || ok "uncovered deliverable → CRITICAL exit 1"; rm -f "$tmp"
+echo "== C14 do-analyze (current template format: deliverables: + **Deliverable:** + demo/Cycle outcome) =="
+"$S/do-analyze.sh" plans/tools-router-todo.md >/dev/null 2>&1 && ok "real plan → every cycle ships + testable" || no "real plan coverage"
+tmp=$(mktemp); printf 'deliverables:\n  - api: foo.ts — does X (C1)\nsource_of_truth:\n## C1 — y\n(no deliverable line)\n' > "$tmp"
+"$S/do-analyze.sh" "$tmp" >/dev/null 2>&1 && no "cycle w/o deliverable should fail" || ok "cycle ships nothing → CRITICAL exit 1"; rm -f "$tmp"
+tmp=$(mktemp); printf 'deliverables:\n  - api: foo.ts — does X (C1)\nsource_of_truth:\n## C1 — y\n**Deliverable:** `foo.ts`\n**Cycle outcome:** vitest passes\n' > "$tmp"
+"$S/do-analyze.sh" "$tmp" >/dev/null 2>&1 && ok "well-formed mini-plan → pass" || no "well-formed should pass"; rm -f "$tmp"
 
 echo "== C11 do-prove =="
 pv=$("$S/do-prove.sh" one.ie/web/src/components/X.tsx 2>/dev/null); echo "$pv" | grep -q 'surface: frontend' && ok "frontend → /browser" || no "frontend"
@@ -46,7 +48,7 @@ echo '{"receiver":"cost:cycle","data":{"tokens":{"input":1},"model":"sonnet","co
 echo "== /do-loop removed (single front door) =="
 # scan commands+agents only (the engine surface); the 'no separate' note is the lone allowed mention
 if grep -rn '/do-loop' .claude/commands .claude/agents 2>/dev/null | grep -vq 'no separate'; then no "/do-loop still referenced"; else ok "/do-loop gone (only the 'no separate' note)"; fi
-[ -f .claude/commands/do-lifecycle.md ] && ok "do-lifecycle.md is the spec" || no "do-lifecycle.md missing"
+[ -f .claude/commands/do.md ] && ok "do.md is the spec (single front door)" || no "do.md missing"
 
 echo "== C5 seed lifecycle (one.ie/web vitest) =="
 if command -v bunx >/dev/null 2>&1; then

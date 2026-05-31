@@ -26,9 +26,7 @@ Manage ONE's Cloudflare deployment: credentials, secrets, KV/D1, monitoring, log
 | Astro (one-substrate) | `dev.one.ie` (primary, CF Workers Static Assets) · `one-substrate.pages.dev` (legacy idle, rollback safety net) | `@astrojs/cloudflare@13` | SSR + static assets |
 | Gateway | `api.one.ie` (custom domain) → `one-gateway.oneie.workers.dev` | vanilla Worker | TypeDB proxy + WsHub DO |
 | Sync | `one-sync.oneie.workers.dev` | vanilla Worker | TypeDB → KV cron (1 min) |
-| NanoClaw | `nanoclaw.oneie.workers.dev` | vanilla Worker | Edge agents (Telegram/Discord webhooks) |
-| Donal-Claw | `donal-claw.oneie.workers.dev` | vanilla Worker | CMO bot (persona: donal) |
-| Debby-Claw | `debby-claw.oneie.workers.dev` | vanilla Worker | Elevare works bot |
+| Channels | `channels.one.ie` (custom domain) · `channels.oneie.workers.dev` | vanilla Worker | The one multi-tenant agent runtime (Telegram/Discord/web/HTTP); serves every slug per `plans/clean.md`. Retired the per-bot dedicated workers (donal-claw/debby-claw). |
 
 ---
 
@@ -401,7 +399,7 @@ bun wrangler tail --name=one-substrate
 ```bash
 time curl -s https://api.one.ie/health -o /dev/null            # expect <10ms
 time curl -s https://dev.one.ie/ -o /dev/null                  # expect <500ms (Workers)
-time curl -s https://nanoclaw.oneie.workers.dev/health -o /dev/null
+time curl -s https://channels.oneie.workers.dev/health -o /dev/null
 ```
 
 ### Deployment history

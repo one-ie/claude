@@ -14,7 +14,7 @@
 #   stop [group]                       kill one listener (or all if no arg)
 #   status                             show config + listener state per group
 #   listeners                          list all running listener PIDs
-#   groups                             ask claw what groups exist (discovery)
+#   groups                             ask channels what groups exist (discovery)
 #   send [--to <group>] <text>         send to default (or specific) group
 #   read [<group>]                     show new messages since last read (one group)
 #   read --all                         merge new across every subscribed group
@@ -24,7 +24,7 @@
 
 set -e
 
-CLAW_URL="${CLAW_URL:-https://claw.oneie.workers.dev}"
+CHANNELS_URL="${CHANNELS_URL:-https://channels.oneie.workers.dev}"
 if ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -n "$ROOT" ] && [ -d "$ROOT/.cc-connect" ]; then
   DIR="$ROOT/.cc-connect"
 else
@@ -108,7 +108,7 @@ listener_start() {
       [ -z "$last_ts" ] && last_ts=0
       curl -N -sS --max-time 90 \
         --header "Last-Event-ID: $last_ts" \
-        "$CLAW_URL/stream/$group?since=$last_ts" 2>/dev/null \
+        "$CHANNELS_URL/stream/$group?since=$last_ts" 2>/dev/null \
       | while IFS= read -r line; do
           case "$line" in
             "data: "*)
@@ -248,10 +248,10 @@ case "$cmd" in
     ;;
 
   groups)
-    /bin/echo "claw says:"
-    curl -s "$CLAW_URL/groups" -m 5 \
+    /bin/echo "channels says:"
+    curl -s "$CHANNELS_URL/groups" -m 5 \
       | jq -r '.groups[] | "  \(.id)  msgs=\(.message_count)  last=\(.last_sender // "—"): \((.last_content // "")[0:60])"' \
-      || /bin/echo "  (could not reach claw)"
+      || /bin/echo "  (could not reach channels)"
     /bin/echo "you are subscribed to:"
     cfg_groups | /usr/bin/sed 's/^/  /'
     ;;
@@ -275,7 +275,7 @@ case "$cmd" in
     text="${args[*]}"
     [ -z "$text" ] && { /bin/echo "error  usage: cc-connect send [--to <group>] <text>"; exit 1; }
     body=$(jq -n --arg s "$SENDER" --arg c "$text" '{sender: $s, content: $c}')
-    resp=$(curl -s -X POST "$CLAW_URL/signal/$target" \
+    resp=$(curl -s -X POST "$CHANNELS_URL/signal/$target" \
       -H 'Content-Type: application/json' \
       -d "$body")
     /bin/echo "ok  →$target  $resp"

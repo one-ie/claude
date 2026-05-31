@@ -31,8 +31,11 @@ Comprehensive and fast are not in tension: the **tier decides which gates run**,
 |---|---|---|
 | Tier prune | Step 1 | PATCH walks `code` only; a gate never runs above the phases it guards |
 | Tool ladder | every decision | bash → Haiku → Sonnet → Opus; stop at the first that decides |
+| **Context reset** | cycle boundary | multi-cycle plans run each cycle in a fresh subprocess (`do-auto.sh`) — prior-cycle chatter (~15–25k/cycle) never accumulates; ~90–150k saved on a 6-cycle plan |
 | **TRIVIAL fast-path** | BUILD | **0 agent spawns** — read ≤3 files inline, edit, bash verify, inline rubric, 1 learnings line |
-| Recon cache | W1 | KV `recon:{sha}:{sha}` hit (<14d) → skip re-read, `mark(recon:hit)` |
+| Recon cache | W1 | `do-recon-cache.sh check` — sha-keyed local store, <14d → **0 tokens**, skip all spawns (saves ~12k/recon) |
+| W1 prefix cache | W1 miss | `w1-recon.ts` caches the ~5,400-token rules+agent prefix across Haiku calls (~4,900 saved/repeat) |
+| W4 rubric cache | W4 | `w4-rubric.ts` caches the ~10,900-token rubric+spec block across 6 Haiku calls — 1 write + 5 reads (~46k saved/run) |
 | Verify-only-changed | W3→W4 | dependency cone from `git diff`; full verify only at cycle close |
 | Cross-cycle pre-warm | W4 close | one fire-and-forget Haiku pre-reads the next cycle's W1 targets |
 | Recon cap | W1 | 400-word receipt; high-signal slices → `.w2-spec.json`, not the raw dump |
@@ -72,9 +75,10 @@ C2·C3·C4 are siblings → their W1/W2 run concurrently and their W3a edits mer
 | Input | Treat as | Entry |
 |---|---|---|
 | bare text (`"add usage billing"`) | **IDEA** (default) | walk the spine from the top |
-| `<slug>` or a `plans/*.md` path | existing work | resolve its slug, walk from the first gap |
-| `--auto` | run all cycles of a todo continuously | BUILD engine, trust-aware |
+| `<slug>` or a `plans/*.md` path | existing work | resolve its slug; ≥2 incomplete cycles → auto context-isolated loop, else walk from the first gap inline |
 | `--wave N` | force one wave of a todo | BUILD engine |
+| `--next-cycle` | *(internal)* run one batch then exit — the loop's recursion guard, set by `do-auto.sh`; never typed by a human | BUILD engine |
+| `--auto` | *(legacy alias)* same as a bare multi-cycle `/do <slug>` — the loop is automatic now | BUILD engine, trust-aware |
 
 Derive the **slug** from the idea: kebab-case, 2–4 words (`"add usage billing"` → `usage-billing`). Every artifact on the spine is keyed by this slug.
 
@@ -118,7 +122,7 @@ For each **enabled** stop (per the pruned spine), in order: check if its artifac
 | ↳ *ANALYZE* | — | `do-analyze.sh plans/<slug>-todo.md` — CRITICAL exit 1 blocks BUILD | bash · none |
 | **code** | survey verdict = `build` (≥70% match → `expose`/`extend` instead) | the BUILD engine (Step 3) | sonnet · low–medium |
 | **tests** | test file in the repo folder | test-first, one assertion per deliverable | sonnet · low |
-| **proof** | proof artifact captured | `do-prove.sh` (browser / curl / contract / sync) + `accessibility`; **promise-check** the shipped thing against `text/<slug>.md`; FEATURE/SCHEMA built in a worktree → **merge to trunk only on PROVE pass**, abandon on fail | sonnet · low |
+| **proof** | proof artifact captured | `do-prove.sh` (browser / curl / contract / sync) + `accessibility`; **promise-check** the shipped thing against `text/<slug>.md`. A multi-cycle plan already built on its own `do/<slug>` branch (worktree isolation — see Step 2); PROVE is the gate that branch must clear before a human merges it to trunk | sonnet · low |
 | **docs** | feature doc + runbook exist | `tutorial` + `writer` — written against the *proven* behavior | sonnet · medium |
 | **release** | changelog / README row | `/release` + adoption signal | sonnet · low |
 
@@ -148,7 +152,42 @@ After the spine: **LEARN / close** — write one `learnings.md` entry (slug, tie
 
 **Plan-outcome kill-switch (zero LLM).** Re-run the plan's `outcome:` command every cycle close. Exit 0 → the goal is met: remaining cycles enter justify-or-drop (default drop), `--auto` halts. Over the tier ceiling → `warn` + justify. Weak rubric 3× → halt, the *plan* is wrong, not the code. Goal-drift (outcome fails 3× with green rubrics) → force a re-plan.
 
-**`--auto` continuation (trust-aware, reads `.do-trust.json`).** `trusted` (composite ≥ 0.85 × 3+) → start the next cycle immediately. `standard` (0.65–0.85) → continue. `cautious` (< 0.65 × 2) → halt, run `/do next` to resume. Absent file → `standard`.
+**One command, complexity-sized.** `/do <anything>` is the only thing a human types — an idea, a slug, or a `plans/<slug>-todo.md` path. The tier sizes the work and the spine prunes itself: a typo is edited and verified inline (one cycle, no loop); a feature writes its promise, spec, todo, tests, and docs and then runs every cycle. The human never picks the mode, never types a flag, never runs a second command.
+
+**Context isolation is automatic for multi-cycle plans.** When `/do` resolves to a todo with **≥2 incomplete cycles**, it does not run them inline — it hands the loop to the internal engine so every cycle gets a **fresh context**:
+
+```bash
+# /do runs this itself — the user never types it
+bun .claude/scripts/do-auto.sh <slug>
+```
+
+`do-auto.sh` loops: each iteration spawns a clean `/do <slug> --next-cycle` that runs exactly one batch (W1→W4), ticks its boxes, writes state, and exits. Because each cycle starts from near-zero context, prior-cycle recon/edit/verify chatter never accumulates. The main session just kicks off the loop and reports the close.
+
+**Worktree isolation comes free with the loop.** The loop's existence *is* the trigger — `do-auto.sh` only runs for multi-cycle plans, which is exactly the FEATURE/SCHEMA work that must not land half-built on trunk. So before the first cycle it cuts a worktree `.do-worktrees/<slug>` on branch `do/<slug>` (reusing it on resume), syncs the plan's spine artifacts into it, and runs **every cycle inside it** — each cycle's edits and box-ticks commit to that branch. Trunk never moves while the loop runs; a halt (trust `cautious` / stall / max-cycles) leaves a clean, inspectable WIP branch, and re-running `/do <slug>` resumes in the same worktree. On plan-complete the loop **reports** the merge (`git merge --no-ff do/<slug>`) rather than running it — landing to trunk is a human decision (commit only when asked), and PROVE is the gate that branch cleared to earn the merge. PATCH/FIX never reach the loop, so they run inline with no worktree.
+
+A **single** incomplete cycle (or a PATCH/FIX) runs inline — there's nothing to isolate from, and spawning a subprocess would cost more than it saves.
+
+**`--next-cycle` is internal.** It means "run one batch, tick boxes, exit — do **not** loop." Only `do-auto.sh` passes it; it is the recursion guard that keeps a fresh `/do` from re-entering the loop. A human never types it.
+
+State that survives the reset (all on disk — the loop is stateless in memory):
+- `plans/<slug>-todo.md` — checked boxes are the progress bar; the next `/do --next-cycle` reads them and skips completed cycles automatically
+- `.do-trust.json` — trust level and consecutive score history (drives auto-continue vs halt)
+- `.w4-improvements.json` — open items that become mandatory W1 targets next cycle
+- `.w2-spec.json` / `.w3-receipts.json` — write-once state for soft-resume within a cycle
+
+What is intentionally discarded each reset: prior-cycle conversation and agent output prose. The checkboxes captured everything that matters; the prose was scaffolding.
+
+**Trust gates the loop (reads `.do-trust.json`).** `trusted` (composite ≥ 0.85 × 3+) → next cycle fires immediately. `standard` (0.65–0.85) → continue. `cautious` (< 0.65 × 2) → `do-auto.sh` halts and tells the human to re-run `/do <slug>` once the issue is fixed. Absent file → `standard`.
+
+**Token math for a 6-cycle COMPLEX plan:**
+
+| Mode | Context per cycle | Cumulative context |
+|---|---|---|
+| inline (everything in one session) | +15–25k per cycle | ~90–150k by cycle 6 |
+| context-isolated (the default) | ~1–2k (fresh invocation) | ~1–2k every cycle |
+| **Saving** | — | **~90–150k tokens** |
+
+This compounds with the W1 cache and W4 rubric cache: a cycle 6 run with context isolation + both SDK caches costs roughly **1/10th** of the same cycle run inline in a long session.
 
 ---
 
@@ -165,7 +204,19 @@ echo "$RESOLVED" | jq -se 'all(.doc_only)' >/dev/null \
 TSC=$(bunx tsc --noEmit 2>&1 | grep -c "error TS" || echo 0)   # write .w0-baseline.json {tscErrors, loc, tests}
 ```
 
-**W1 — Recon.** Read `.w4-improvements.json` open items first — they're mandatory recon targets. Check the recon cache (KV `recon:{sha}:{sha}` <14d) → hit skips the re-read. ≤5 files → read inline. ≥6 → spawn `w1-recon` (Haiku · low) for ALL files in ONE message; each returns structured findings; skip `relevance_score < 0.4`; all-filtered → halt and broaden (zero-findings guard). Receipt capped at 400 words; persist high-signal slices into `.w2-spec.json`. *(The `w1-recon` agent carries the two-track existing-code + primitive-inventory contract.)*
+**W1 — Recon.** Read `.w4-improvements.json` open items first — they're mandatory recon targets.
+
+**Cache check (zero tokens):**
+```bash
+.claude/scripts/do-recon-cache.sh check $CYCLE_TARGET_PATHS 2>/dev/null && RECON_CACHE_HIT=true || true
+```
+Hit → load findings from stdout, skip all agent spawns. Also run `do-recon-cache.sh prune` once per session to evict entries older than 14 days.
+
+Miss → ≤5 files → read inline. ≥6 → run the SDK script (prompt-cached rules + agent-prompt block, writes result to `.w1-cache/`):
+```bash
+bun .claude/scripts/w1-recon.ts --targets "$FILES" --mode RECON
+```
+Script exits 2 if `ANTHROPIC_API_KEY` is absent → fall back to spawning `w1-recon` agent (Haiku · low) for ALL files in ONE message. Either path: skip `relevance_score < 0.4`; all-filtered → halt and broaden (zero-findings guard). Receipt capped at 400 words; persist high-signal slices into `.w2-spec.json`. *(The `w1-recon` agent carries the two-track existing-code + primitive-inventory contract.)*
 
 **W2 — Decide (never delegated — Opus · high).** Write the goal/deliverable/UX gate (3 sentences) first. Then: reconcile names against `dictionary.md`; run the **compress check** before any new primitive (name 3 existing primitives that compose it → `compose` removes it from the diff, `new` needs a one-line justification + same-diff doc edit). The pre-mortem + trade-offs were already captured at the `spec` stop (`template-spec.md`) — carry the failure modes forward as test cases, don't redo them. Classify each W1 finding Act / Keep / Defer. Output diff specs + write `.w2-spec.json` (+ `.w2-doc-plan.json` if a doc trigger fires). *(The `w2-decide` agent carries the compose-target table — which canonical doc to check per primitive type — plus context-triggers for surgical doc injection.)*
 
@@ -178,7 +229,11 @@ $(cycle.demo.command)                       # the goal gate — exit 0 = pass
 # doc-sync gate (reads .w2-doc-plan.json): stale-name=0, links ok, contract mtime current
 DELTA_TSC=$((TSC_NOW - TSC_BASELINE))       # hard gate: ≤ 0, no new type errors ever
 ```
-Rubric (inline for TRIVIAL/SIMPLE; for COMPLEX spawn 6 Haiku · medium — goal-fit, security, stability, simplicity, speed, adversarial — alongside `pr-review-toolkit` (code-reviewer, silent-failure-hunter, type-design-analyzer) + `find-bugs` + `accessibility` on UI):
+Rubric (inline for TRIVIAL/SIMPLE; for COMPLEX — run the SDK script first (6 Haiku in parallel, rubric + spec block cached across all calls):
+```bash
+bun .claude/scripts/w4-rubric.ts --files "$(git diff HEAD --name-only | tr '\n' ',')"
+```
+Script exits 2 if key absent → fall back to spawning 6 Haiku agents · medium. Either path runs alongside `pr-review-toolkit` (code-reviewer, silent-failure-hunter, type-design-analyzer) + `find-bugs` + `accessibility` on UI):
 ```
 composite = 0.35·goal-fit + 0.20·security + 0.20·stability + 0.15·simplicity + 0.10·speed
 gate: composite ≥ 0.65  AND  goal-fit ≥ 0.50 (hard)  AND  no adversarial > 0.5  AND  delta_tsc ≤ 0
@@ -206,12 +261,14 @@ PATCH clears {1,2,3,8}. FEATURE clears all eight.
 - **Closed loop** — every cycle ends in `mark`/`warn`, never a silent return.
 - **Cheapest tool that decides wins** — a phase that needs no LLM call is the best kind.
 - **W4 max 3 loops**, then halt and report.
+- **One command.** A human types `/do <anything>` and nothing else. Complexity sizing, spine pruning, and (for multi-cycle plans) the context-isolated loop are all automatic — never a flag, never a second command.
+- **Every cycle gets a fresh context.** A multi-cycle `/do` runs each cycle in a clean subprocess via the internal loop. Prior-cycle conversation is noise; the todo checkboxes are the only state that carries forward.
 
 ---
 
 ## Available to /do — the toolbox
 
-**Scripts** (`.claude/scripts/`): `do-tier.sh` (tier + pruned spine + classifier + ceiling) · `do-folder.sh` (folder-aware verify/build) · `do-survey.sh` (reuse verdict) · `do-reconcile.sh` (substrate dim/verb/dead-name gate) · `do-analyze.sh` (spec↔todo coverage gate) · `do-prove.sh` (surface-detect proof) · `do-smoke.sh` (deterministic outcome).
+**Scripts** (`.claude/scripts/`): `do-auto.sh` (*internal* — the context-isolated, worktree-isolated loop `/do` drives for multi-cycle plans; builds on branch `do/<slug>`, merges to trunk only on a human's say-so) · `do-tier.sh` (tier + pruned spine + classifier + ceiling) · `do-folder.sh` (folder-aware verify/build) · `do-survey.sh` (reuse verdict) · `do-reconcile.sh` (substrate dim/verb/dead-name gate) · `do-analyze.sh` (deliverable↔cycle coverage gate) · `do-prove.sh` (surface-detect proof) · `do-smoke.sh` (deterministic outcome) · `w1-recon.ts` (prompt-cached recon) · `w4-rubric.ts` (cached parallel rubric).
 
 **Templates**: `text/template-frame.md` (promise) · `plans/template-spec.md` (design + pre-mortem + decisions) · `plans/template-todo.md` (plan + parallel budget + testing policy) · `plans/agent-template.md` (agent definition).
 

@@ -2,3 +2,7 @@ settings.local.json
 scheduled_tasks.lock
 .DS_Store
 *.lock
+
+# transient deps for local hook scripts
+scripts/node_modules/
+node_modules/

@@ -6,7 +6,7 @@ Claude Code harness. Commands, skills, rules, hooks, and subagents.
 
 ```
 .claude/
-├── commands/      # /see, /create, /do, /close, /sync, /deploy, /claw, /browser
+├── commands/      # /see, /create, /do, /close, /sync, /deploy, /browser
 ├── skills/        # /typedb, /sui, /astro, /react19, /shadcn, /reactflow, /deploy, /writer
 ├── rules/         # Auto-loaded by glob: engine.md, react.md, astro.md, ui.md, design.md, api.md, documentation.md
 ├── agents/        # w1-recon, w2-decide, w3-edit, w4-verify
@@ -23,6 +23,21 @@ Claude Code harness. Commands, skills, rules, hooks, and subagents.
 | `commands/` | User types `/<name>` |
 | `agents/` | Spawned via Agent tool — **isolated context, no parent CLAUDE.mds inherited** |
 | `hooks/` | Fire on events per `settings.json` |
+
+## Hooks wired (settings.json)
+
+| Event | Matcher | Hooks |
+|-------|---------|-------|
+| PreToolUse | Edit/Write/MultiEdit | gate-guard (block), config-protect (block), compact-hint |
+| PostToolUse | Read | read-tracker |
+| PostToolUse | Write/Edit | post-edit-check |
+| PostToolUse | Write/Edit/MultiEdit | sync-todo-docs, design-check (block) |
+| PostToolUse | * | tool-signal |
+| TaskCompleted | * | task-complete-verify (block) |
+| Stop | * | session-end-verify, stop-reflect |
+| SessionStart | * | session-start |
+
+`hooks/lib/` (hook.sh, signal.sh) are shared helpers, not wired directly.
 
 ## The /do lifecycle
 

@@ -134,11 +134,51 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "id": "hook:gate-guard",
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gate-guard.sh",
+            "timeout": 5000,
+            "blocking": true
+          },
+          {
+            "id": "hook:config-protect",
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/config-protect.sh",
+            "timeout": 5000,
+            "blocking": true
+          },
+          {
+            "id": "hook:compact-hint",
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/compact-hint.sh",
+            "timeout": 3000,
+            "blocking": false
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "id": "hook:read-tracker",
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/read-tracker.sh",
+            "timeout": 3000
+          }
+        ]
+      },
       {
         "matcher": "Write|Edit",
         "hooks": [
           {
+            "id": "hook:post-edit",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-check.sh",
             "timeout": 15000
@@ -149,6 +189,7 @@
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
+            "id": "hook:sync-todo-docs",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sync-todo-docs.sh",
             "timeout": 5000
@@ -159,6 +200,7 @@
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
+            "id": "hook:design-check",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/design-check.sh",
             "timeout": 5000,
@@ -170,6 +212,7 @@
         "matcher": "*",
         "hooks": [
           {
+            "id": "hook:tool-signal",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tool-signal.sh",
             "timeout": 3000
@@ -182,6 +225,7 @@
         "matcher": "*",
         "hooks": [
           {
+            "id": "hook:task-complete",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/task-complete-verify.sh",
             "timeout": 120000,
@@ -195,12 +239,14 @@
         "matcher": "*",
         "hooks": [
           {
+            "id": "hook:session-end",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-end-verify.sh",
             "timeout": 30000,
             "blocking": false
           },
           {
+            "id": "hook:stop-reflect",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-reflect.sh",
             "timeout": 10000,
@@ -214,6 +260,7 @@
         "matcher": "*",
         "hooks": [
           {
+            "id": "hook:session-start",
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
             "timeout": 5000,
