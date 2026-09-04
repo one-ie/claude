@@ -623,3 +623,251 @@
 - **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
 - **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
 - **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T01:17:57Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T01:41:31Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T01:41:59Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T01:45:40Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T01:46:29Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T01:48:23Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T05:30:57Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T05:31:02Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T05:31:14Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T05:35:04Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T05:39:21Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T05:50:57Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T05:58:24Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T06:01:40Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T07:34:21Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T07:34:28Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-05-31T07:44:00Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-05-31T08:13:08Z
+- **convention** `.claude/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `.claude/skills/cloudflare.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 7 file(s) changed — run `/skill-create source` to crystallise the pattern as a reusable skill.
+
+## 2026-06-03T03:55:01Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T05:01:14Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T06:18:50Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:24:44Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:26:35Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:29:28Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:30:43Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:31:54Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:34:30Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:35:34Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:37:04Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:37:56Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:41:09Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:41:24Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T07:43:26Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T08:42:09Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T08:44:33Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T08:45:21Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T08:48:05Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T08:50:53Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T08:52:21Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T08:52:51Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T09:12:03Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T09:15:22Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T10:40:38Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T10:55:50Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T10:55:56Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T10:59:08Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:01:47Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:03:29Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:08:13Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:21:38Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:23:04Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:25:00Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:26:44Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:32:07Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:33:26Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:37:01Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:37:49Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-03T11:38:23Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-04T04:15:12Z
+- **convention** `text/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+
+## 2026-06-04T04:41:14Z
+- **convention** `CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `plans/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **convention** `text/CLAUDE.md` — review: did this change introduce a rule the broader team should know? If yes, surface it in root `CLAUDE.md` or the relevant skill.
+- **skill-create** cycle closed with 16 file(s) changed — run `/skill-create ` to crystallise the pattern as a reusable skill.
