@@ -25,7 +25,7 @@ fi
 doc_only=true
 for p in "${paths[@]}"; do
   case "$p" in
-    *.md|.claude/*|plans/*|text/*|docs/*) ;;
+    *.md|.claude/*|text/*|text/*|docs/*) ;;
     *) doc_only=false ;;
   esac
 done
@@ -36,7 +36,11 @@ fi
 
 # 3. longest-prefix match against known buildable folders (one.ie/web BEFORE one.ie).
 #    bash 3.2-safe (macOS): no associative arrays — dedup a newline list with sort -u.
-folders="one.ie/web one.ie packages agents api schema sync backup"
+# channels/ and pay/ were ABSENT until 2026-09-03, and they are two of the five
+# deployed services. A changed set touching only them answered "unmapped", which
+# do-w4-gates then dropped on the floor -- no verify row at all, in either lane.
+# pay/backend before pay, one.ie/web before one.ie: longest prefix must win.
+folders="one.ie/web one.ie packages agents api schema sync backup channels pay/backend pay"
 matched=""
 for p in "${paths[@]}"; do
   for f in $folders; do
@@ -56,7 +60,12 @@ printf '%s\n' "$matched" | while IFS= read -r f; do
   pj="$ROOT/$f/package.json"
   verify="null"; build="null"
   if [ -f "$pj" ]; then
+    # Dev lane by default: verify:fast (tsc + related tests + pinned gates).
+    # FULL_VERIFY=1 (set by /close and ./deploy) asks for the whole suite.
     jq -e '.scripts.verify' "$pj" >/dev/null 2>&1 && verify='"bun run verify"'
+    if [ "${FULL_VERIFY:-0}" != "1" ] && jq -e '.scripts["verify:fast"]' "$pj" >/dev/null 2>&1; then
+      verify='"bun run verify:fast"'
+    fi
     jq -e '.scripts.build'  "$pj" >/dev/null 2>&1 && build='"bun run build"'
   fi
   printf '{"folder":"%s","verify":%s,"build":%s,"doc_only":false}\n' "$f" "$verify" "$build"

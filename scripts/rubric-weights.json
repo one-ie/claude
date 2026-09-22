@@ -1,0 +1,64 @@
+{
+  "_": "Single source for every rubric weight. Docs and scripts READ this; none restate the numbers. Edit here, nowhere else.",
+  "_why": "Four files once carried four different formulas because two legitimately different rubrics were never named. They are named here: `cycle` gates a /do cycle and carries goal-fit; `task` scores a diff that has no plan context and deliberately does not. A file that computes one must never be read as the other.",
+  "_canon": "text/rubrics.md is the design source of truth. The `migration` block below records where this file deliberately lags it.",
+
+  "gate": 0.65,
+  "goalFitGate": 0.50,
+
+  "cycle": {
+    "_use": "The in-cycle W4 gate — the verdict that closes a /do cycle. Spec: .claude/commands/do.md § W4. Consumers: w4-verify agent, /close.",
+    "_gate": "composite >= gate AND goal-fit >= goalFitGate (hard) AND no adversarial > 0.5 AND delta_tsc <= 0. All four conjuncts, or the cycle does not close.",
+    "weights": {
+      "goal-fit": 0.30,
+      "security": 0.18,
+      "stability": 0.18,
+      "simplicity": 0.12,
+      "integration": 0.12,
+      "speed": 0.10
+    }
+  },
+
+  "task": {
+    "_use": "The 5-axis task rubric — scores a diff WITHOUT plan context, so goal-fit is unavailable and its absence is by design, not drift. Spec: .claude/commands/do-autonomous.md § CLOSE. Consumer: w4-rubric.ts.",
+    "_not": "NOT the cycle gate. A task composite has no goal-fit term and must never be compared to the cycle gate or written where a cycle composite is expected.",
+    "_copies": "one.ie/web/src/engine/rubric.ts CODE_RUBRIC_WEIGHTS is a pinned copy of this block (worker code cannot read this file at runtime). Change one, change both.",
+    "weights": {
+      "security": 0.30,
+      "stability": 0.25,
+      "simplicity": 0.20,
+      "integration": 0.15,
+      "speed": 0.10
+    }
+  },
+
+  "package": {
+    "_use": "Static scoring of a package source tree (no diff, no plan). Consumer: do-rubric.py, which writes the W0 baseline.",
+    "_partial": "goal-fit is unavailable here too. do-rubric.py normalises over these five and labels its output composite_partial. It is a BASELINE, never a gate verdict.",
+    "_sum": "These DELIBERATELY sum to 0.75, not 1.00 — they are the five code axes lifted from a larger set with goal-fit (0.30) removed, and do-rubric.py divides by their sum. Do not 'fix' them to 1.00; that would silently reweight the baseline. `cycle` and `task` DO sum to 1.00.",
+    "weights": {
+      "security": 0.20,
+      "stability": 0.20,
+      "simplicity": 0.15,
+      "integration": 0.10,
+      "speed": 0.10
+    }
+  },
+
+  "definitions": {
+    "_": "Every weighted axis needs a definition or the LLM judge improvises one per run. `stability` carried 0.25 undefined until 2026-08-02.",
+    "goal-fit": "Does the diff deliver the cycle's stated goal? Scored against the todo's outcome line, not against general quality.",
+    "security": "Zero vulnerabilities. Every boundary validated. No secrets. Authorization off ctx, never off a request body field.",
+    "stability": "Errors are handled, not swallowed: no empty catch, no bare Promise.all, no silent console-only catch. Every handler closes its loop with mark/warn/dissolve. TS strict holds.",
+    "simplicity": "Minimum code for maximum feature. Every line earns its place.",
+    "integration": "Wired, never orphaned — imports/exports used, routes registered, links added, docs synced. Scored deterministically from .w2-surface-checklist.json when available.",
+    "speed": "No added latency on a hot path; bundle and query cost do not regress."
+  },
+
+  "migration": {
+    "_status": "PENDING — design only, not executed. See text/rubric-migration-plan.md.",
+    "_target": "text/rubrics.md defines EIGHT code dims: security .20, structure .15, simplicity .15, speed .10, integration .15, code-reuse .10, test-coverage .10, ux .05, with in-cycle W4 = 0.30*goal-fit + 0.70*(the eight reweighted).",
+    "_gap": "`structure`, `code-reuse`, `test-coverage` and `ux` are scored by NOTHING today. `stability` is not a rename of `structure` — do-rubric.py's score_stability() conflates error-handling with test presence, which canon splits into `structure` and `test-coverage`. Landing the eight changes every score and breaks comparability with the 262 historical composites in text/learnings.md.",
+    "_do_not": "Do not silently substitute the eight-dim formula in any consumer. It lands as one edit to this file plus judge-prompt changes, with a dated changeover marker in learnings.md."
+  }
+}

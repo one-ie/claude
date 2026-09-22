@@ -1,6 +1,6 @@
 # /improve
 
-Close the feedback loop opened by `stop-reflect.sh` and `session-start.sh`. Reads `.claude/improvements.queue.md`, presents each proposal, promotes accepted ones to the right target.
+Drain `.claude/improvements.queue.md` — a static backlog since 2026-09-05, when the `stop-reflect.sh` hook that appended to it on every Stop was removed (445 entries, nothing ever consumed them). Presents each proposal, promotes accepted ones to the right target. When the file is empty, delete it and this command.
 
 The hooks open the loop. This command closes it.
 
@@ -24,12 +24,12 @@ The hooks open the loop. This command closes it.
 
 ## Target resolution
 
-Proposals come in three kinds (set by `stop-reflect.sh`):
+Proposals come in three kinds (the shapes the old `stop-reflect.sh` wrote):
 
 | Proposal kind | Detection | Target |
 |---|---|---|
 | `**convention**` | `\.claude/(rules\|skills\|agents)/...` or `CLAUDE\.md` in path | the named file — promote the rule into its body |
-| `**new primitive**` | `\.claude/(skills\|rules\|agents\|hooks)/[^/]+\.(md\|sh)` | the index in `one-ie/.claude/CLAUDE.md` — add a one-line entry |
+| `**new primitive**` | `\.claude/(skills\|rules\|agents\|hooks)/[^/]+\.(md\|sh)` | `.claude/CLAUDE.md` § Structure, or the root `README.md` skills table — add a one-line entry (the two targets `stop-reflect.sh` names) |
 | `**doc-drift**` | `<subdir>/CLAUDE.md` named | that CLAUDE.md — surface a 3-line summary of the most impactful code changes and ask the user which (if any) belong in the contract |
 
 If detection fails, the user is asked: "which file should this update?" Free-text answer accepted.
@@ -48,7 +48,9 @@ If detection fails, the user is asked: "which file should this update?" Free-tex
 ```
 - **new primitive** `.claude/skills/perf.md` — add a one-line entry to the index.
 ```
-→ `apply` opens `one-ie/.claude/CLAUDE.md`, finds the skills index, appends `| /perf | ...` row.
+→ `apply` opens `.claude/CLAUDE.md`, finds the `skills/` line in the § Structure block, and
+adds the name to it (that block is a tree listing, not a table — the `| /perf | … |` row form
+belongs in the root `README.md` skills table).
 
 **Doc-drift proposal:**
 ```

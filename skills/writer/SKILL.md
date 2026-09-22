@@ -25,6 +25,22 @@ Every piece of writing — long or short — goes through this loop:
 
 If time is short, skip steps 5 and 6 and ship. Steps 1–4 are non-negotiable.
 
+**Writing under Anthony's or ONE's name?** Invoke the `voice` skill. It picks
+between his two registers — the book register
+([`text/voice-and-tone.md`](../../../text/voice-and-tone.md), his own writing
+specification) and the commercial register
+([`text/writing-style-guide.md`](../../../text/writing-style-guide.md)).
+
+**Order depends on the register.** For commercial work, run this loop first, then
+`voice`. For **book** work, invoke `voice` first and use this skill only for
+sentence-level polish — step 3 above ("aim to halve the word count") and step 4
+("move the strongest point to the top") are wrong for that register, which is
+paced to walk at the reader's pace and never leads with its thesis. Applying
+them to a chapter turns it into a landing page.
+
+This skill decides whether the sentence works; `voice` decides whether it's *his*.
+When they disagree, `voice` wins.
+
 ---
 
 ## Step 0: Audience, medium, goal
@@ -307,19 +323,31 @@ But: when in doubt, shorter. Almost no one ever wishes a piece of writing were l
 
 ## Project-specific voice
 
-For work in this repo, the **ONE voice contract** layers on top of this skill:
-[`/.claude/product-marketing.md`](../../product-marketing.md). It defines the
-audience (CEOs + engineers), the simple-English rule, banned vocabulary, and
-headline patterns specific to ONE. Read it before writing any marketing,
-product, or landing-page copy here. The writer skill is the craft; the
-product-marketing context is the voice.
+Voice documents layer on top of this skill. **Which ones you read is the `voice`
+skill's decision, not this one's** — it picks the register first, and the book
+register reads `text/voice-and-tone.md` and stops there. Don't preload all of
+them.
+
+**Commercial register — blog posts, landing pages, client email, social, docs prose:**
+[`text/writing-style-guide.md`](../../../text/writing-style-guide.md) — the
+derived guide. The sensibility (does this tool serve the work, or has it started
+serving itself?), the typography fingerprint (trailing ` …`, the em-dash ration,
+scare-quotes, capitalized Concepts), the sentence rhythm (punch / carrier /
+escalating list), and the recurring beats (received-wisdom turn, forensic
+descent, two-camps dismissal).
+
+**Marketing, product, and landing-page copy:**
+[`/.claude/product-marketing.md`](../../product-marketing.md) — ONE's brand voice.
+Audience (CEOs + engineers), the speed/ease/simplicity thesis, banned vocabulary,
+headline patterns, and the data rule. Layers on top of the style guide for
+anything that ships as ONE copy.
 
 ---
 
 ## Reference files
 
+- `text/writing-style-guide.md` — the commercial register: sensibility, typography fingerprint, sentence rhythm, recurring beats, vocabulary bank, anti-patterns, worked examples. Read it when `voice` picks commercial; for the book register `voice` sends you to `text/voice-and-tone.md` instead.
 - `references/anti-patterns.md` — A longer catalogue of clichés, AI-prose tells, and corporate jargon to avoid, with replacements. Read this when editing marketing or corporate copy where the user wants to sound less like a press release.
-- `references/voice-matching.md` — How to read a writer's voice from sample text and match it. Read this when ghostwriting or editing on someone else's behalf.
 - `references/structures.md` — Concrete templates for common pieces (essay openings, founder updates, landing page sections, cold emails). Read this when the user asks for a format you want to handle well.
 - `references/copy-frameworks.md` — The canon: ten headline frameworks (JTBD, PAS, BAB, outcome+timeframe, hard-thing-without-pain, plain truth, numbered nouns, category-for-audience, Dunford positioning, attributed quote) with when-to-use, examples, traps; the specificity and sensory rules; the seven biases (anchoring, loss aversion, social proof, authority, reciprocity, scarcity, decoy) and which frameworks recruit which. Read this when writing or rewriting landing pages, pricing pages, hero sections, or any headline that has to convert.
 

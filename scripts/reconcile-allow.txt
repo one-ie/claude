@@ -1,0 +1,30 @@
+# reconcile-allow.txt — phrases that contain a dead-name substring but are canonical
+# names or proper nouns, NOT substrate misnaming. Read by do-reconcile.sh and stripped
+# (case-insensitive) before the dead-name scan. One ERE pattern per line; '#' = comment.
+#
+# Keep tight: each pattern must be a phrase that can ONLY be the legitimate usage. Do not
+# allowlist a bare dead name — that defeats the check. Prefer fixing prose over adding here.
+
+# Canonical gloss for the Paths dimension — root CLAUDE.md: "Weighted connections — strength/resistance"
+weighted connections
+
+# Node.js — the JavaScript runtime, not the substrate "node"
+node\.js
+nodejs
+node [0-9]+
+
+# ROCKET prompt framework (Role, Objective, Context, Knowledge, Example, Tasks):
+# "Knowledge" is a fixed external field name, not the Learning dimension.
+role, objective, context, knowledge, example, tasks
+knowledge supplies
+\*\*knowledge
+
+# Bitcoin Lightning Network node — a real external technical term (LND/CLN/OpenNode
+# runs one), not the substrate "node". text/tokens.md, text/tokens-plan.md.
+lightning node
+node to run
+
+# playbook-node — a real one.tql attribute (ELEVATE playbook position marker),
+# a kebab-case compound where grep -w treats the hyphen as a word boundary and
+# false-positives on "node". Not the substrate dead name. schema/one.tql:385.
+playbook-node

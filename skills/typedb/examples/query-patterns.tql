@@ -1,5 +1,9 @@
-# TypeQL 3.0 Query Patterns
-# Common patterns for TypeDB 3.x queries
+# TypeQL Query Patterns — TypeDB 3.12.1 (prod + local, 2026-07-29)
+# Generic teaching schema (user/friendship/employment), NOT the ONE substrate.
+# For real substrate queries use schema/*.tql — see SKILL.md 'In-repo'.
+# Syntax notes: no if/then/else expression; `return first <literal>` is a
+# TQL0 error (bind a `let` first); stream returns are `-> { type }`, never
+# `-> { $v: type }`; iterate a stream with `let $x in f(...)`.
 
 # ============================================================================
 # SCHEMA DEFINITION PATTERNS
@@ -407,7 +411,8 @@ select $friend, $age;
 with
     fun is_adult($u: user) -> boolean:
         match $u has age $a; $a >= 18;
-        return first true;
+        let $ok = true;    # `return first true` is a TQL0 syntax error
+        return first $ok;
 match
     $u isa user;
     let $adult = is_adult($u);

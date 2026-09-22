@@ -23,11 +23,11 @@ If `[slug]` is omitted, derive it from the most recent `learnings.md` entry
 
 ```bash
 # Last learnings entry
-tail -5 plans/learnings.md
+tail -5 text/learnings.md
 
 # Recent cycle diff (what actually changed)
 git diff HEAD~1 HEAD --stat
-git diff HEAD~1 HEAD -- $(git diff HEAD~1 HEAD --name-only | grep -v 'plans/\|text/' | head -20)
+git diff HEAD~1 HEAD -- $(git diff HEAD~1 HEAD --name-only | grep -v 'text/' | head -20)
 ```
 
 **Step 2 — Extract the pattern (Haiku · low)**
@@ -42,9 +42,25 @@ Ignore one-off specifics (feature names, slugs). Keep the reusable skeleton.
 
 **Step 3 — Write `.claude/skills/<slug>/SKILL.md`**
 
+The path is `.claude/skills/<slug>/SKILL.md` — a **directory** containing
+`SKILL.md`. A bare `.claude/skills/<slug>.md` is not loaded by the runtime
+(several flat files there — `build.md`, `typecheck.md`, `dev.md`, `signal.md`,
+`cloudflare.md`, the `rag-*.md` set — exist as canon but never trigger as skills).
+
+The YAML frontmatter is **load-bearing, not decoration**: `name` and
+`description` are what the runtime matches against to decide whether to surface
+the skill. A SKILL.md with no frontmatter never triggers. Put the trigger phrases
+in `description` — the `## When to use` body section is read only *after* the
+skill has already been selected.
+
 Use this template:
 
 ```markdown
+---
+name: <slug>
+description: <what this does, then the trigger conditions — "Use when …". Include the literal phrases a user would type. This field is the whole triggering surface.>
+---
+
 # <title> skill
 
 <one-sentence description — what this skill does for the model>
@@ -65,14 +81,31 @@ Use this template:
 
 **Step 4 — Wire it (if applicable)**
 
-- If the skill has a natural trigger phrase, append a row to the skills table in
-  `.claude/CLAUDE.md` so it auto-loads.
+- Auto-loading comes from the frontmatter `description`, not from any index —
+  get the trigger phrases into that field or the skill stays dark.
+- Then add the name to the `skills/` line in `.claude/CLAUDE.md` § Structure so
+  the harness inventory stays true. That listing is documentation of what exists;
+  it does not itself wire anything.
 - If it extends an existing skill, note the relation.
 
 **Step 5 — Close**
 
-Emit `signal("learning:harden", 1, "skill=<slug>")` and append one line to
-`plans/learnings.md`:
+Append one line to `text/learnings.md`. That line **is** the close — it is
+deterministic and it is what the next cycle reads.
+
+Do **not** emit `learning:harden` or `learning:know`. Neither is a registered
+receiver: `grep -c '"learning:' packages/sdk/src/receivers.ts` → **0**. The
+earlier version of this step instructed `signal("learning:know", { skill })`,
+which fails silently — the same defect its own warning described, one line
+down. The whole `learning:` namespace is unregistered; `harden`'s only shipped
+wire is `chat:harden`, which needs a threadable `entityId` and does not fit a
+skill close.
+
+If you want the creation recorded in the substrate, `skill:save` is real
+(`packages/sdk/src/receivers.ts`). Check the receiver exists before emitting —
+the signature is `signal(receiver, data)`, and there is no three-argument form.
+
+The line:
 
 ```
 - YYYY-MM-DD · skill:<slug> · crystallised from <source-slug> · source=skill-create
@@ -96,5 +129,5 @@ Emit `signal("learning:harden", 1, "skill=<slug>")` and append one line to
 ## Close
 
 After writing the skill file: `[ ] skill-create:<slug> done` appended to
-`plans/learnings.md`, signal emitted, session stop-reflect will pick it up as
+`text/learnings.md`, signal emitted, session stop-reflect will pick it up as
 a new primitive on the next session start.

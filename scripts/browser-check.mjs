@@ -1,122 +1,63 @@
 #!/usr/bin/env node
 /**
- * browser-check.mjs — Playwright browser diagnostic tool.
+ * browser-check.mjs — DEPRECATED SHIM. Kept so existing callers keep working.
  *
- * Usage:
- *   node .claude/scripts/browser-check.mjs [url] [--send "message"] [--screenshot] [--network]
+ * The engine is now `.claude/scripts/chrome.mjs` (chrome-headless-shell via
+ * Playwright). This file maps the old flag set onto it and renames the report
+ * fields back to the shape `do-prove.sh` and `/browser` already parse.
  *
- * Requires: playwright in /tmp/node_modules (installed once, persists across sessions)
- * Install:  cd /tmp && npm install playwright && npx playwright install chromium
+ * New work calls chrome.mjs directly — it has steps, network, eval, selectors,
+ * cookies and headers this shim does not expose.
  *
- * What it checks:
- *   - Page load (status, title, console errors)
- *   - Chat rail text before/after sending a message (--send)
- *   - API request/response monitoring (--network)
- *   - Screenshot saved to /tmp/browser-check.png (--screenshot)
- *   - JS errors, React hydration errors
+ * Old usage (unchanged):
+ *   node .claude/scripts/browser-check.mjs [url] [--send "msg"] [--screenshot] [--network]
+ *
+ * Old prerequisite (`npm install playwright` into /tmp) is GONE. chrome.mjs
+ * finds Playwright wherever this tree installed it, including from a linked
+ * worktree. The /tmp copy had already evaporated, which silently degraded every
+ * browser PROVE to a curl fallback.
  */
 
-import pkg from '/tmp/node_modules/playwright/index.js'
-const { chromium } = pkg
-import { writeFileSync } from 'fs'
+import { spawnSync } from 'node:child_process'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+const HERE = dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
-const urlArg = args.find(a => a.startsWith('http')) ?? 'http://localhost:4321'
+
+const url = args.find((a) => a.startsWith('http')) ?? 'http://localhost:4321'
 const sendMsg = args.find((_, i) => args[i - 1] === '--send') ?? null
 const doScreenshot = args.includes('--screenshot')
 const doNetwork = args.includes('--network')
 
-const browser = await chromium.launch({ headless: true })
-const page = await browser.newPage()
+const argv = [join(HERE, 'chrome.mjs'), url]
+if (sendMsg) argv.push('--send', sendMsg)
+if (doScreenshot) argv.push('--screenshot', '/tmp/browser-check.png')
+if (doNetwork) argv.push('--network')
 
-// Capture console output
-const consoleLogs = []
-const jsErrors = []
-page.on('console', m => consoleLogs.push({ type: m.type(), text: m.text() }))
-page.on('pageerror', e => jsErrors.push(String(e)))
-
-// Network monitoring
-const apiRequests = []
-const apiResponses = []
-if (doNetwork) {
-  page.on('request', req => {
-    if (req.url().includes('/api/')) {
-      apiRequests.push({ method: req.method(), url: req.url().split('?')[0] })
-    }
-  })
+const run = spawnSync(process.execPath, argv, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+if (run.status !== 0) {
+  process.stderr.write(run.stderr || 'chrome.mjs failed\n')
+  process.exit(run.status ?? 1)
 }
 
-// Patch fetch to capture chat API body + stream
-await page.addInitScript(() => {
-  const orig = window.fetch
-  window.__chatCapture = []
-  window.fetch = async (...args) => {
-    const url = args[0]?.toString() || ''
-    if (url.includes('/api/chat') && !url.includes('warmup') && !url.includes('tts')) {
-      const method = args[1]?.method || 'GET'
-      const body = typeof args[1]?.body === 'string' ? args[1].body : ''
-      if (method === 'POST') {
-        window.__chatCapture.push({ type: 'request', body: body.substring(0, 200) })
-        const resp = await orig(...args)
-        const clone = resp.clone()
-        const reader = clone.body?.getReader()
-        if (reader) {
-          let chunks = ''
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            chunks += new TextDecoder().decode(value)
-          }
-          window.__chatCapture.push({ type: 'stream', status: resp.status, body: chunks.substring(0, 800) })
-        }
-        return resp
-      }
-    }
-    return orig(...args)
-  }
-})
-
-// Load page
-const res = await page.goto(urlArg, { waitUntil: 'load', timeout: 15000 }).catch(e => ({ status: () => 0, error: e.message }))
-const httpStatus = typeof res?.status === 'function' ? res.status() : 0
-await page.waitForTimeout(2500)
-
-const title = await page.title().catch(() => '(no title)')
-const chatRailBefore = await page.evaluate(() => document.querySelector('.chat-rail')?.innerText?.substring(0, 200) || null)
-
-// Send message if requested
-let chatRailAfter = null
-if (sendMsg) {
-  const ta = await page.$('textarea')
-  if (ta) {
-    await ta.fill(sendMsg)
-    await ta.press('Enter')
-    await page.waitForTimeout(12000)
-    chatRailAfter = await page.evaluate(() => document.querySelector('.chat-rail')?.innerText?.substring(0, 400) || null)
-  }
+let r
+try {
+  r = JSON.parse(run.stdout)
+} catch {
+  process.stdout.write(run.stdout)
+  process.exit(0)
 }
 
-// Screenshot
-if (doScreenshot) {
-  await page.screenshot({ path: '/tmp/browser-check.png', fullPage: false })
-}
-
-const chatCapture = await page.evaluate(() => window.__chatCapture || [])
-
-await browser.close()
-
-// Report
-const report = {
-  url: urlArg,
-  httpStatus,
-  title,
-  jsErrors,
-  consoleErrors: consoleLogs.filter(l => l.type === 'error').map(l => l.text),
-  chatRailBefore,
-  chatRailAfter: sendMsg ? chatRailAfter : undefined,
-  chatCapture: sendMsg ? chatCapture : undefined,
-  apiRequests: doNetwork ? apiRequests : undefined,
+console.log(JSON.stringify({
+  url: r.url,
+  httpStatus: r.httpStatus,
+  title: r.title ?? '(no title)',
+  jsErrors: r.jsErrors,
+  consoleErrors: r.consoleErrors,
+  chatRailBefore: r.chatRailBefore ?? null,
+  chatRailAfter: sendMsg ? (r.chatRailAfter ?? null) : undefined,
+  chatCapture: sendMsg ? (r.chatCapture ?? []) : undefined,
+  apiRequests: doNetwork ? (r.network ?? []).map((n) => ({ method: n.method, url: n.url })) : undefined,
   screenshot: doScreenshot ? '/tmp/browser-check.png' : undefined,
-}
-
-console.log(JSON.stringify(report, null, 2))
+}, null, 2))

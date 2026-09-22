@@ -1,326 +1,211 @@
 # /deploy
 
-**Skills:** `/cloudflare` (Workers auth) · `/signal` (deploy:success / deploy:degraded)
+> **Every deploy spawns `release-manager`, and it always reports to the CEO.**
+> Not just the slash command — `/deploy`, `./deploy`, `bash .claude/scripts/deploy.sh`,
+> `release.sh promote`, `release.sh ship`, and any plain-English "ship it" / "deploy the
+> site" all take this door. The conductor does not run the doors itself. First action:
+>
+> ```
+> Agent({ subagent_type: "release-manager", model: "opus",
+>         prompt: "Read one.ie/ai/agents/release-manager/agent.md and .claude/skills/deploy/REFERENCE.md, then run /deploy <args>. Target: <sha | PR | origin/main>. Authorised to ship: <yes | gates-only>." })
+> ```
+>
+> Pass `model: "opus"` (the generated roster maps a specialist to Sonnet). Tell it
+> to read the source prompt — a session started before the last `one-agents.mjs`
+> run holds the older roster copy. The agent opens and closes with a post to the
+> CEO in `/u/one/in` (group `release`) — see its § Report to the CEO. The
+> conductor relays the agent's closing report to the operator; it never re-runs
+> the gates to double-check a green, and never ships past a held one.
+>
+> **This is not advice about a slash command — it is the rule for the last two doors
+> of the loop** (`../../CLAUDE.md § The dev → prod loop`). The only work the asked
+> session does itself is deciding the target sha and relaying the report. If you find
+> yourself typing `release.sh` or `wrangler` in the conductor, you have already skipped
+> the agent — and with it the CEO post that is the only record the release happened.
+>
+> **And the doctor holds the box.** `deploy.sh` reads `health.sh --box --json`
+> before its first gate and refuses an UNHEALTHY box (`DEPLOY_SKIP_DOCTOR=1`
+> overrides). When it does, spawn `doctor` and let release-manager wait:
+>
+> ```
+> Agent({ subagent_type: "doctor", model: "opus",
+>         prompt: "health.sh says: <why>. Reclaim what nothing is coming back for, then report the verdict." })
+> ```
+>
+> A deploy runs five gates. On a paging box each one runs long, and a slow gate
+> is indistinguishable from a red one at the wall clock — which is how a good
+> tree gets diagnosed as broken code. The box comes first.
 
-Ship all four services to Cloudflare. Deterministic sandwich — W0 baseline, build, smoke, approval, parallel deploy, health.
+**Skills:** `/cloudflare` (Workers auth) · `/signal` (deploy:success / deploy:degraded) · `deploy` (the run as tracked work) · `.claude/skills/deploy/REFERENCE.md` (every trap this page used to carry)
 
-> **Production cutover (2026-05-23):** Astro site runs on **CF Workers with Static Assets** (not Pages). Production target is **`https://one.ie`** via the `one-prod` worker. Deploy command is `wrangler deploy --env production`.
+**Before a production deploy, run `/sweep`** — it lands every finished branch into
+`dev`, pays **one** gate on the integrated tree instead of one per branch, sweeps
+the worktrees, and ends by naming the sha to promote. `/deploy` then has one tree
+to think about instead of six.
+
+Ship all five services to Cloudflare. Deterministic sandwich — W0 baseline, build, smoke, approval, parallel deploy, health.
+
+> **Production door (2026-09-05): `bash .claude/scripts/release.sh promote <sha>` then `ship`** — prod ships from `.release/`, a clean checkout carrying a full-suite receipt for its exact tree. `./deploy` stays the pipeline; `release.sh` is what points it at a tree that cannot be dirty. Loop: `../../CLAUDE.md § The dev → prod loop` · plan: `text/release-path-plan.md`.
+>
+> **Monorepo (2026-06-04):** all services live in one repo (`Server/one-ie`). Deploy each via `wrangler deploy` from its folder — **never via repo push, no CI**. Deploys are run locally.
+>
+> **Production cutover (2026-05-23):** Astro site runs on **CF Workers with Static Assets** (not Pages). Production target is **`https://one.ie`** via the `one-prod` worker. Deploy command is **`wrangler deploy` (no `--env` flag)** — see the deploy-target trap note below.
+>
+> **⚠️ Deploy-target trap (found 2026-07-03; fixed in-tree 2026-07-04, verified still fixed 2026-08-02 — `one.ie/web/package.json`'s `deploy` script is now `npm run build && wrangler deploy` with no `--env`, and `wrangler.toml` has no `[env.production]` block. The trap is only reachable by hand-typing `--env` now):** `one.ie`'s custom domain is bound to Worker service **`one-prod`** (confirmed via Cloudflare API). `one.ie/web/wrangler.toml` has no explicit `legacy_env` setting, which means Wrangler's **default legacy-environment behavior applies** for TOML configs: passing `--env production` appends `-production` to the top-level `name`, deploying to a *different* script, `one-prod-production` — which nothing routes to. Three consecutive deploys to `one-prod-production` showed zero effect on `https://one.ie` until `wrangler deploy` was run **without** `--env production`. **Always deploy this worker bare: `wrangler deploy` (no `--env` flag).** Do not re-add `--env production` out of habit — it silently ships to a decoy. **The trap is not limited to `wrangler deploy`** — `wrangler secret put`/`secret delete` take the same `--env` flag and silently target the same `one-prod-production` decoy (hit 2026-07-06 provisioning `UPGRADE_LINK_SECRET`: it landed on the decoy first, invisibly — no error, just a secret nothing reads). Any bare `wrangler <subcommand>` against this worker: **no `--env` flag, ever.**
 >
 > **Environment model:**
-> - **Production (live):** `https://one.ie` — `one-prod` worker, deployed from `one.ie/web/` via `wrangler deploy --env production`
-> - **Dev (live):** `https://dev.one.ie` — `one-substrate` worker, deployed on every `main` push
+> - **Production (live):** `https://one.ie` — `one-prod` worker, deployed from `one.ie/web/` via bare `wrangler deploy` (**not** `--env production` — see trap note above)
 > - **Gateway (live, stable):** `https://api.one.ie` — `one-gateway` worker
+> - **Pay gateway (live, stable):** `https://pay.one.ie` — `one-core-worker`, deployed from `pay/backend/` via `bun run deploy` (no `--env` flag; no explicit `[[routes]]` block in its wrangler.toml either — same bare-deploy discipline as `one-prod`). Not part of the original "4 services" naming (found 2026-07-05 after a commit there went unshipped for a full deploy cycle) — treat it as a 5th first-class deploy target, not an afterthought.
+> - **Dev (live again since 2026-08-25):** `https://dev.one.ie` — the **`one-dev`** worker, deployed from `one.ie/web/` by `.claude/scripts/deploy-dev.sh` (reachable as **`./deploy dev`**). Its config is *derived from the Astro build output* by `.claude/scripts/gen-dev-config.py` — never hand-rolled — so it cannot drift from what production ships. That script does two things worth knowing: it renames the worker to `one-dev` + binds `dev.one.ie`, and it **strips every cron**. Dev shares production's D1 and KV bindings, so inheriting prod's schedules would mean two workers running the same handlers against the same rows — double sends, double syncs, races. The first dev deploy shipped 6 schedules including `*/5 * * * *` before this was caught. **Dev observes prod data; it must never also drive prod's clock.**
+>   - **`dev.one.ie` is not a data sandbox.** It reads and writes production's rows byte-for-byte. Ship code there freely; treat its DATA as production.
+>   - **The RETIRED thing was `one-substrate`**, the old CF-Pages-built dev project whose git integration was disconnected 2026-06-04. That project stays dead — do not deploy it, and do not confuse it with `one-dev`. The sibling tree `apps/dev.one.ie` is still dead code: do not build or ship it. Nothing deploys via repo push.
 > - **Legacy idle (rollback only — do not deploy):**
 >   - `https://oneie.pages.dev` — old Pages project for `one.ie` ("Ecommerce Playbook" content). Re-attach `one.ie` to this project to roll back.
->   - `app.one.ie`, `demo.one.ie`, `onestudio.dev` — still bound to the prior `one-demo` worker. `one-demo` stays in the account untouched for rollback; redeploying `one-demo` would push stale code, so don't.
->   - `https://one-substrate.pages.dev` — paused Pages project, rollback only.
+>   - `demo.one.ie`, `onestudio.dev` — still bound to the prior `one-demo` worker. `one-demo` stays in the account untouched for rollback; redeploying `one-demo` would push stale code, so don't.
+>   - `app.one.ie` moved OFF `one-demo` to `one-prod` on 2026-08-06 — it is now an ordinary verified custom domain for `group:one` (D1 `domains` row) and serves `/u/one/*`. Declared in `one.ie/web/wrangler.toml` as a Custom Domain.
 >
-> See `docs/cf-workers-migration-todo.md` for migration history. The custom-domain detach step (Pages → Worker) is done manually via the CF API (no in-repo script today).
+> The custom-domain detach step (Pages → Worker) is done manually via the CF API (no in-repo script today).
 
-## Modes
+## Run it — `./deploy`
 
-| Invocation | What |
-|-----------|------|
-| `/deploy` | Full pipeline — W0 + build + 4 services + health |
-| `/deploy --skip-tests` | Skip W0 baseline (risky — use only when already verified) |
-| `/deploy --dry-run` | Build + smoke only, no deploy |
-| `/deploy --preview-only` | Build + preview Worker deploy (no CI-gated services) |
-| `/deploy astro` | Astro Worker only (re-bundle after UI changes) |
-| `/deploy workers` | Gateway + Sync + Agents only (no Astro rebuild) |
-| `/deploy gateway` | Gateway worker only |
-| `/deploy sync` | Sync worker only |
-| `/deploy agents` | Agents edge agents only |
-
-## The 8-Step Pipeline
+**`.claude/scripts/deploy.sh` is the authority for the procedure. This doc never
+carries a second copy of the steps** — same discipline as `astro.config.mjs §
+vite.ssr.external`. When a step changes, change the script; edit here only when
+what a gate *means* changes.
 
 ```bash
-bun run deploy          # full pipeline
-bun run deploy -- --dry-run
-bun run deploy -- --skip-tests
-DEPLOY_CONFIRM=yes bun run deploy   # CI / non-interactive
+./deploy dev            # one.ie/web → one-dev (dev.one.ie) — FAST gate, no approval
+./deploy                # full pipeline — 5 services (PRODUCTION)
+./deploy astro          # one-prod only
+./deploy workers        # api + sync + channels
+./deploy gateway|sync|agents|pay
+./deploy --dry-run      # print every command, ship nothing
 ```
 
-**Step 1 — W0 Baseline**
-```bash
-bun run verify   # biome + tsc --noEmit + vitest run + audit:design
-```
-Record tests passed/total. Fix before proceeding — never deploy on red.
+`./deploy` is a repo-root wrapper that `exec`s `.claude/scripts/deploy.sh`;
+either path works, and `/deploy` in Claude Code runs the same script rather than
+retyping its steps.
 
-**Step 2 — Changes**
-`git diff` summary. Flag large changesets.
+### The two tiers — one command, two destinations
 
-**Step 3 — Build**
-```bash
-NODE_ENV=production astro build
-```
-Target: ~23s. Emits `dist/_worker.js/index.js` + static assets via `@astrojs/cloudflare@13`. Watch for bundle size warnings.
+| | `./deploy dev` | `./deploy` |
+|---|---|---|
+| Destination | `dev.one.ie` (`one-dev`) | `one.ie` + the other four services |
+| Gate | **FAST lane** (`verify:fast`) | **FULL** (`FULL_VERIFY=1`, every test) |
+| Approval prompt | none | yes, unless `--yes` |
+| Migrations | none | `d1 migrations apply --remote` |
+| Crons | stripped | shipped |
+| Who ships it | agents, finishing a loop | a human, promoting |
 
-**Step 4 — Credentials**
-`CLOUDFLARE_API_TOKEN` must be unset. Deploy uses `CLOUDFLARE_GLOBAL_API_KEY` only.
-Scoped tokens lack permissions for workers + custom domains.
+**`./deploy dev` ships whatever tree it is invoked from — which is `main`.** To
+put a *branch* on dev.one.ie, and to open the PR that proposes it, use
+`bash .claude/scripts/land.sh <branch> --pr --deploy` — one command for
+gate → dev → probe → PR. See "Branch → dev → PR → main" below.
 
-**Step 5 — Smoke**
-Verify `dist/server/` exists, all 4 wrangler configs present: `api/wrangler.toml`, `sync/wrangler.toml`, `agents/wrangler.toml`, root `wrangler.toml`.
+`./deploy dev` exits into `deploy-dev.sh` immediately rather than threading a
+flag through the production pipeline — a different destination with a different
+gate is a different procedure, and `deploy-dev.sh` stays its authority. The one
+production flag that carries over is `--skip-tests`, which becomes the dev
+script's `DEV_SKIP_GATE=1`.
 
-**Step 6 — Approval**
-`main` branch: prompts "yes". Other branches: auto-approved.
-CI: `DEPLOY_CONFIRM=yes bun run deploy` (already set in `.github/workflows/deploy.yml`).
+**A fast pass is never reported as a full pass.** Dev going green says the fast
+lane passed and `dev.one.ie` answered 200 — nothing more. Promotion to
+production runs every test again, because the full suite is the gate that has
+actually caught the regressions.
 
-**Step 6.5 — D1 Migrations**
-Run before any worker deploy so schema is current when new code lands:
-```bash
-cd one.ie/web && bunx wrangler d1 migrations apply DB --remote --env production
-```
-"✅ No migrations to apply!" is a pass. Any applied migration is logged and counted.
-Migration failures block deploy — never ship worker code ahead of its schema.
+| Mode | Ships |
+|---|---|
+| *(none)* | full pipeline — gates + 5 services + health |
+| `astro` | Astro Worker only (re-bundle after UI changes) |
+| `workers` | Gateway + Sync + Agents (no Astro rebuild) |
+| `gateway` · `sync` · `agents` · `pay` | that one service |
 
-**Step 7 — Deploy (parallel workers + astro)**
-Gateway + Sync + Agents deploy in parallel (~16s). Astro Worker deploys after (~16s).
+Flags: `--check-creds` (self-test the credential ladder, ship nothing) ·
+`--skip-tests` · `--skip-typecheck` · `--skip-build` · `--skip-migrations`
+· `--skip-health` · `--allow-dirty` · `-y/--yes` (or `DEPLOY_YES=1`) ·
+`-n/--dry-run`. Exit 0 = `deploy:success`; a failed probe exits 1 and prints the
+rollback command. Logs: `.deploy-logs/deploy-<stamp>.log` (gitignored) plus one
+per service for the parallel wave.
 
-**Step 8 — Health**
-```bash
-curl https://api.one.ie/health                   # Gateway
-curl https://one.ie/api/health                   # Astro Worker (production)
-curl https://one-sync.oneie.workers.dev/         # Sync
-curl https://agents.oneie.workers.dev/health   # Agents
-```
-3 retries with backoff. All 4 must return 200. Astro `/api/health` must report `units: 140` (or current count) — empty `units: 0` means the build didn't bake `PUBLIC_GATEWAY_URL` correctly.
+### What the script does NOT do — and won't
 
----
+Two things stay human, by design:
 
-## Bundle Size Rules (CF Workers Free Tier — 3 MiB gzipped upload)
+- **Commit / PR / merge** (its own section below). Commit messages and PR bodies
+  need judgment. The script's first gate refuses a dirty tree
+  (`--allow-dirty` overrides) so the deploy and the history can't disagree.
+- **Known-flaky triage.** On a red suite it prints the failing files and stops,
+  pointing at the allowlist. Deciding "that one's the DoH network gap" is a read
+  of the evidence, not a rule. The ONE exception is now mechanised: a suite whose
+  every failure is the shared TypeDB cluster refusing to answer is classified and
+  waived by `typedb-flake-check.sh` — see "The TypeDB flake waiver" below. That
+  check is deliberately narrow; everything else is still your read.
 
-The Astro Worker upload must stay under **3 MiB gzipped** on the free tier (10 MiB
-on paid). Wrangler reports both `Total Upload` (uncompressed) and `gzip` — only
-gzip counts toward the ceiling. All chunks in `dist/server/chunks/` are uploaded
-together; dynamic `await import()` does NOT exclude code from the upload.
+## The gates — what each one asserts
 
-These rules are **LOCKED** — do not revert them. Apply identically to any
-developer template we ship (`oneie init` Workers scaffold mirrors this shape).
+The script runs these in order. Named here so a failure message means something;
+the commands themselves live in the script.
 
-### Rule 1 — `syntaxHighlight: false` in `astro.config.mjs`
+| Gate | Asserts |
+|---|---|
+| **0 · Tree** | working tree clean (`git status --porcelain` empty). First, so a dirty tree fails in a second instead of after a full W0 |
+| **1a · Typecheck** | `bunx tsc --noEmit` clean in all 5 services. Builds `packages/sdk` first when its `dist/` is missing — `one.ie/web` and `channels` resolve SDK types from there, and an unbuilt `dist` fakes a wall of `TS2307` |
+| **1b · Tests** | the full suite in `one.ie/web`, as TWO concurrent lanes — see below. Red blocks, except a classified TypeDB outage; the script won't wave anything else through for you |
+| **3 · Build** | `NODE_ENV=production bun run build` in `one.ie/web` (~30–35s). Emits `dist/server/` + static assets via `@astrojs/cloudflare@13`, patches `wrangler.json` with DO bindings, symlinks `.dev.vars` |
+| **0.4 · Credentials** | Runs **first**, before the slow gates — one curl is cheap, discovering a bad credential after a 2m14s build is not. Resolves ONE credential from an ordered ladder (ambient env → `.env.local` → `one.ie/web/.env` → OAuth), probing each rung with `curl /user` — ground truth, unlike `wrangler whoami`, which answers about whichever credential *that one directory* surfaces. Exports the winner to all five service subshells, so a per-dir `.env` can no longer make two consecutive steps use two different keys. Logs the source as `len=… sha=…`, never bytes, then asserts all five services report the same account id. Self-test: `--check-creds` |
+| **1c · Heavy-gate scheduling** | that vitest and the astro build only overlap when the box can pay for it. Priced in **memory, not cores** — see the section below |
+| **5 · Smoke** | `dist/server/` exists; all 5 `wrangler.toml`s present. Warns if `one.ie/web/wrangler.toml` grew an `[env.production]` block — that's the decoy trap coming back |
+| **6 · Approval** | on `main`, prompts for a literal `yes`. Other branches auto-approve |
+| **6.5 · Migrations** | `wrangler d1 migrations apply DB --remote` — **no `--env`**. "✅ No migrations to apply!" is a pass. Failure blocks: never ship worker code ahead of its schema |
+| **7 · Deploy** | Gateway + Sync + Agents + Pay in parallel (~10s each), then Astro (~30s, largest bundle). Every call bare — no `--env`, ever |
+| **8 · Health** | 4 HTTP probes × 3 tries with backoff, cache-busted with `?_t=`. Sync is cron-only — its clean deploy IS its health signal |
 
-```js
-markdown: { syntaxHighlight: false }
-```
+## Branch → dev → PR → main — `land.sh`, not this doc
 
-Disables Shiki from Astro's markdown pipeline. Without this, Shiki pulls ~5.8 MiB of
-language grammar files into the SSR worker on every build. **Do not re-enable.**
-
-### Rule 2 — `ssr.external` for heavy packages
-
-```js
-ssr: {
-  external: ["node:async_hooks", "@mysten/sui", "@mysten/bcs", "shiki", "@shikijs/core", "@shikijs/types"]
-}
-```
-
-The CF adapter bundles everything by default. `ssr.external` creates a bare
-`import { x } from 'pkg'` reference without inlining the package.
-
-**Critical nuance:** `ssr.external` only works safely when the externalized package is
-never executed on the server path. For `shiki`: `codeToHtml` is imported by `code-block.tsx`,
-but all components that use `code-block.tsx` are `client:only` — so `codeToHtml` is never
-called in the worker. The import statement exists in the bundle but is dead code.
-
-If you add a new heavy dependency used only client-side, add it here.
-
-### Rule 3 — Pure-shell pages use `client:only` + `prerender = true`
-
-```astro
----
-export const prerender = true
-import { MyComponent } from "@/components/MyComponent"
----
-<Layout title="...">
-  <MyComponent client:only="react" />
-</Layout>
-```
-
-`client:only="react"` — Astro renders an empty div on the server; the component never
-runs in the worker. The React component tree (+ all its imports) stays out of the SSR bundle.
-
-`export const prerender = true` — the page becomes a static asset generated once
-at build time. The page's SSR handler collapses to a small stub. Zero worker cost
-at runtime.
-
-**Use this pattern for:** any page that has no server-side data dependencies
-(no `Astro.locals`, no `Astro.request`, no DB queries in frontmatter).
-
-Currently prerendered (verify with `grep -l "export const prerender = true" src/pages/*.astro`):
-`404.astro`, `board.astro`, `build.astro`, `ceo.astro`, `chat.astro`, `chat-agents.astro`,
-`chat-fast.astro`, `chat-routing.astro`, `in.astro`, `speed.astro`.
-
-Pages that CANNOT be prerendered (need runtime session/auth):
-`world.astro` (reads `Astro.locals.session`), `market.astro` (fetches capabilities).
-
-### Rule 4 — `inlineStylesheets: 'auto'` in `astro.config.mjs`
-
-```js
-build: { inlineStylesheets: 'auto' },   // ← NEVER 'always'
-```
-
-With `'always'`, Astro inlines the full Tailwind stylesheet into **every route's
-serialized manifest entry**. With ~100 routes the entry chunk balloons by 8+ MiB
-of duplicated CSS as a single string literal — diagnosable in worker-entry at
-the line `const _manifest = deserializeManifest({...})`.
-
-`'auto'` ships the bundle as one external `<link rel="stylesheet">` referenced
-once across all routes. Browsers cache it across navigations — a page-speed
-win, not just a worker-size win.
-
-**Verified 2026-05-22:** flipping `always` → `auto` dropped worker-entry from
-9.5 MiB → 672 KiB and total gzip from 3302 KiB → 2079 KiB.
-
-### Rule 5 — `react-dom/server.edge` alias (production only)
-
-```js
-resolve: {
-  alias: {
-    ...(isDev ? {} : { "react-dom/server": "react-dom/server.edge" })
-  }
-}
-```
-
-Already in `astro.config.mjs`. Required for CF Edge runtime compatibility.
-Do not remove for production builds.
-
----
-
-## Verified Bundle Numbers
-
-| Snapshot | Total upload | gzip | Worker-entry | What changed |
-|---|---|---|---|---|
-| 2026-04-18 (post Pages→Workers migration) | — | — | 9.5 MiB | Rules 1-3 + 5 |
-| 2026-05-22 before `inlineStylesheets` fix | 18.5 MiB | 3.3 MiB | 9.5 MiB | Over 3 MiB ceiling — deploy FAILED |
-| 2026-05-22 after Rule 4 (`'always'` → `'auto'`) | 10.1 MiB | **2.1 MiB** | **672 KiB** | Under ceiling — deploy ✓ |
-
-The 2026-05-22 regression was caused by `build: { inlineStylesheets: 'always' }`
-inlining the full Tailwind stylesheet into every route's manifest entry. One
-char change (`always` → `auto`) saved 8.8 MiB.
-
----
-
-## Service Map (post-migration)
-
-| Service | URL | Config | Deploy command |
-|---------|-----|--------|---------------|
-| Astro Worker (prod) | `one.ie` → `one-prod` | `one.ie/web/wrangler.toml` | `cd one.ie/web && wrangler deploy --env production` |
-| Astro Worker (dev) | `dev.one.ie` → `one-substrate` | `wrangler.toml` (root) | `wrangler deploy` |
-| Gateway | `api.one.ie` → `one-gateway` | `api/wrangler.toml` | `cd api && wrangler deploy` |
-| Sync | `one-sync.oneie.workers.dev` | `sync/wrangler.toml` | `cd sync && wrangler deploy` |
-| Agents | `agents.oneie.workers.dev` | `agents/wrangler.toml` | `cd agents && wrangler deploy` |
-| Pages (legacy idle, rollback) | `oneie.pages.dev` | — | **do not deploy** — rollback target for `one.ie` |
-| Worker (legacy idle, rollback) | `one-demo` (still serves `app.one.ie`, `demo.one.ie`, `onestudio.dev`) | — | **do not deploy** — rollback window for the prod cutover |
-
----
-
-## Auth (CRITICAL — never change)
-
-Always: `CLOUDFLARE_GLOBAL_API_KEY` + `CLOUDFLARE_EMAIL`.
-Never: `CLOUDFLARE_API_TOKEN` (scoped token lacks workers + custom domain permissions).
-
-The deploy script auto-unsets `CLOUDFLARE_API_TOKEN` from the spawned env to prevent
-accidental use of a scoped token that was exported in the shell.
-
-CI secrets required in `.github/workflows/deploy.yml` env block:
-- `CLOUDFLARE_API_KEY` (mapped from `secrets.CLOUDFLARE_GLOBAL_API_KEY`)
-- `CLOUDFLARE_EMAIL`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN: ''` (explicit blank)
-- `DEPLOY_CONFIRM: 'yes'`
-- `PUBLIC_GATEWAY_URL: https://api.one.ie` (build-time-inlined by Astro — **required**; without this the Worker bundle falls back to `one-gateway.oneie.workers.dev` and `/api/health` returns `units: 0`)
-
----
-
-## Steps
-
-### `/deploy` (full pipeline)
-
-1. `bun run verify` — W0 gate. Fail here means don't deploy.
-2. `git diff` summary — surface scope to user.
-3. `NODE_ENV=production bun run build` — Astro production build.
-4. Verify credentials: assert `CLOUDFLARE_GLOBAL_API_KEY` present, unset `CLOUDFLARE_API_TOKEN`.
-5. Smoke check: assert `dist/_worker.js/` exists, all 4 wrangler configs present.
-6. Approval gate: prompt on `main`, auto on other branches.
-7. Parallel deploy: Gateway + Sync + Agents concurrently, then Astro Worker.
-8. Health checks: all 4 endpoints × 3 retries with backoff.
-9. Report:
-   ```
-   Branch:     main
-   Tests:      320/320 pass
-   Build:      23.2s
-   Migrations: 2 applied (0 already up-to-date)
-   Workers:    parallel 16.7s (vs ~42s sequential)
-   Astro:      16.1s
-   Health:     4/4 (Gateway 308ms, Astro 666ms, Sync 287ms, Agents 287ms)
-   Preview:    https://<hash>.one-substrate.<account>.workers.dev
-   Total:      ~65s
-   ```
-
-### `/deploy astro`
-
-Deploys the production worker (`one-prod`) to `one.ie` from the `one.ie/web/` directory.
-
-1. `cd one.ie/web && NODE_ENV=production bun run build`
-2. Check bundle size: `du -sh one.ie/web/dist/server/`
-3. If > 12 MiB: check which chunk grew (`ls -lhS one.ie/web/dist/server/chunks/ | head -15`)
-4. Run D1 migrations: `cd one.ie/web && bunx wrangler d1 migrations apply DB --remote --env production`
-5. `cd one.ie/web && bunx wrangler deploy --env production`
-6. Health: `curl -sL https://one.ie/api/health` (expect 200, `units > 0`)
-
-**Pre-flight (one-time, on cutover only):** ensure no other CF entity owns the `one.ie` custom domain. If wrangler errors with a hostname conflict, detach the prior owner first:
+**`.claude/scripts/land.sh` is the authority for this procedure**, the same way
+`deploy.sh` is the authority for the pipeline. It replaced the hand-rolled
+`git worktree add` + `gh pr create` recipe that used to sit here; that recipe
+was a second copy of a procedure and it rotted — it still told you to
+`git switch main` in the shared tree, which `hook:branch-pin` refuses.
 
 ```bash
-# If a Pages project owns it (was `oneie` project pre-cutover):
-curl -s -X DELETE \
-  "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages/projects/oneie/domains/one.ie" \
-  -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
-  -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY"
+bash .claude/scripts/land.sh feat/x --pr --deploy --probe / --probe /pricing
 ```
 
-### `/deploy workers`
+One command, four steps, in this order:
 
-```bash
-cd api && bun wrangler deploy && cd ../workers/sync && bun wrangler deploy && cd ../../agents && bun wrangler deploy && cd ..
-```
+| # | Step | What it proves |
+|---|---|---|
+| 1 | **gate** — `verify:fast` in the branch's own worktree | the branch is green ON ITS OWN. Not that it survives the trunk — `--pr` deliberately does not merge main in, so the reviewer sees what the branch added and GitHub computes the merge |
+| 2 | **dev** — `$wt/.claude/scripts/deploy-dev.sh` | the branch RUNS. It ships the *worktree's* tree, because `deploy-dev.sh` derives its own ROOT from its own path — `$ROOT`'s copy would ship main and call it the branch |
+| 3 | **probe** — `do-prove.sh`, both bases pinned to dev | the routes answer on dev, under the LANDING RULE. Not `curl / → 200`, which a redirect to `/signin` satisfies |
+| 4 | **PR** — `pr-body.sh` → `gh pr create`/`edit` | a reviewer gets the diff, the trunk drift, the mergeability, the gate label and the dev URL. Re-running UPDATES the open PR, never duplicates it |
 
-Report: version hash per worker, health latency per service.
+Then a human merges the PR, and **promotion to `one.ie` is still `./deploy`** —
+the full gate, from `.release/`. Nothing above touches production.
 
-### Cutover tool (`scripts/cf-cutover.ts`)
+Four things that are load-bearing, each of which read as a pass before it was fixed:
 
-For Pages→Workers custom-domain flips on other services (script is parameterized):
+- **dev.one.ie is one slot, and it writes production's rows.** `--pr --deploy`
+  takes exactly one branch; with two, the second overwrites the first while the
+  first is being probed. Ship code there freely; treat its DATA as production.
+- **Both probe bases are pinned to dev.** `do-prove.sh` falls back to
+  `PROVE_PROD_URL` (default `https://one.ie`) when its dev base is silent — an
+  unreachable dev would otherwise prove *production* and report it as the branch
+  passing.
+- **The probe's route COUNT is read, not its exit code.** `PROVE: skipped (no
+  reachable environment)` exits 0. An unrun probe is not a pass.
+- **The gate is paid once, except under `--quick`.** Step 2 passes
+  `DEV_SKIP_GATE=1` because step 1 just ran `verify:fast` in that same tree.
+  Under `--quick` step 1 was tsc only — not the fast lane — so `deploy-dev.sh`
+  runs its own gate before anything reaches dev.
 
-```bash
-bun run cf-cutover                # dry-run, safe
-bun run cf-cutover --execute      # real cutover: Workers route + Pages detach + health verify + substrate signal
-```
-
-Defaults: domain=`dev.one.ie`, worker=`one-substrate`, pages=`one-substrate`. Override via `CF_CUTOVER_DOMAIN`, `CF_CUTOVER_WORKER`, `CF_CUTOVER_PAGES_PROJECT` env vars.
-
----
-
-## Bundle Size Diagnosis
-
-If build fails with "exceeds size limit":
-
-```bash
-# Check total worker size
-du -sh dist/server/
-
-# Find top offenders
-ls -lhS dist/server/chunks/ | head -20
-
-# Check if a new import pulled in Shiki
-grep -r "from 'shiki'" dist/server/chunks/ | wc -l
-# If > 0: a component that imports shiki was SSR'd
-# Fix: make its page client:only="react" + prerender=true
-
-# Check if React crept back into worker via client:load
-grep -l "react-vendor" dist/server/chunks/
-# If multiple chunks: some page SSR-renders React via client:load
-# Fix: audit src/pages/*.astro for client:load on pure-shell pages
-```
+`land.sh` still has its other two doors: bare (merge main in → gate → `--ff-only`
+main → optionally one dev deploy for the batch) and `--pr` alone (gate → PR, no
+dev). The commit itself stays human — a commit message needs judgment, and
+`deploy.sh`'s first gate refuses a dirty tree so the deploy and the history
+cannot disagree.
 
 ---
 
@@ -328,88 +213,44 @@ grep -l "react-vendor" dist/server/chunks/
 
 ```bash
 # Workers — rollback to previous version
-bun wrangler rollback --name one-prod        # production
-bun wrangler rollback --name one-substrate   # dev
+cd one.ie/web && bunx wrangler rollback --name one-prod        # production
 
-# Legacy Pages fallback (still live at one-substrate.pages.dev for rollback window):
-bun wrangler pages deployment list --project-name=one-substrate
-bun wrangler pages deployments rollback --project-name=one-substrate
-
-# Revert a Worker via git
-cd api && git stash && bun wrangler deploy
+# Redeploy a Worker from its last-committed code WITHOUT touching the shared tree.
+# Never `git checkout HEAD -- .` here: it silently destroys every uncommitted
+# change under that path, including a concurrent session's. `hook:branch-pin`
+# permits pathspec restores, so nothing will stop you — that's why it's banned by
+# convention. `git stash` is blocked outright by hook:git-add-guard.
+# Cut a throwaway worktree at the good commit and deploy from there instead.
+# A fresh worktree has NO node_modules — install before wrangler, or bunx fails:
+git worktree add /tmp/rollback-wt <good-sha>
+(cd /tmp/rollback-wt/api && bun install && unset CLOUDFLARE_API_TOKEN && bunx wrangler deploy)
+git worktree remove /tmp/rollback-wt
 ```
 
----
-
-## Known-Flaky Test Allowlist
-
-Located in `scripts/deploy.ts`:
-
-```typescript
-const KNOWN_FLAKY = [
-  'Act 15: Speed Benchmarks',  // hardware-dependent
-  'STAN distribution',          // stochastic
-  'explorer mode',              // stochastic
-]
-```
-
-These failures don't block deploy. Real failures (type errors, broken logic)
-always block. Use `--strict` to require full green.
+`wrangler rollback` is the cheaper move when the last good code is simply the
+previous deployment — it needs no worktree and no rebuild.
 
 ---
 
-## First-Time Setup
-
-Only needed once — see `docs/deploy.md` for full walkthrough:
-
-```bash
-# Create CF resources
-bun wrangler d1 create one
-bun wrangler kv namespace create KV
-# → Paste IDs into wrangler.toml + sync/wrangler.toml
-
-# Run D1 migration
-bun wrangler d1 execute one --remote --file=migrations/0001_init.sql
-
-# Gateway secrets (TypeDB credentials)
-cd api
-printf 'admin' | bun wrangler secret put TYPEDB_USERNAME
-printf 'YOUR-PASSWORD' | bun wrangler secret put TYPEDB_PASSWORD
-cd ..
-
-# First deploy — Worker auto-provisions on first `wrangler deploy`
-bun run deploy
-```
 
 ---
 
-## Logs
+## The reference — traps, numbers, forensics
 
-- `.deploy.log` — all deployment output, each worker appends here
-- `.deploy-build.log` — W0 baseline diagnostics (biome + tsc + vitest separate)
+Everything below the operating surface moved to **`.claude/skills/deploy/REFERENCE.md`**
+on 2026-09-17, because this page is read by a conductor deciding *who* deploys and
+by an agent that then needs *all* of it. Two audiences, two lengths. Nothing was
+deleted — the file carries the same sections, byte for byte:
 
-Live logs:
+| In the reference | What it holds |
+|---|---|
+| The suite runs as two lanes | why the full gate is two keys, and what that costs a caller |
+| Two disproved speed ideas · why the gates are not all parallel | measurements that closed a question — read before re-opening it |
+| The vitest gate hangs | open, characterised, unexplained |
+| Bundle size rules 1–5 · verified numbers · diagnosis | the 3 MiB CF free-tier ceiling and how each rule buys headroom |
+| Service map · auth (CRITICAL) · mode-specific notes | the five targets, the credential ladder, `./deploy astro|workers|pay` |
+| The TypeDB flake waiver · known-flaky allowlist | the red suite a deploy may ship past, and its bounds |
+| First-time setup · logs · gotchas (`9103`, `7403`) | provisioning, and the two auth failures that are not the same symptom |
 
-```bash
-bun wrangler tail --name one-prod            # Astro Worker (production)
-bun wrangler tail --name one-substrate       # Astro Worker (dev)
-cd api && bun wrangler tail && cd ..     # Gateway
-bun wrangler deployments list --name one-prod | head -10
-```
-
----
-
-## Gotchas
-
-- TypeDB Cloud port is **1729** (not 80 or 443)
-- TypeDB HTTP API prefix is `/v1/` (signin, query, databases)
-- Always `CLOUDFLARE_GLOBAL_API_KEY` — scoped tokens lack permissions for workers + custom domains
-- `import.meta.env` is build-time — `PUBLIC_GATEWAY_URL` is baked into the worker bundle at build. Missing → `/api/health` returns `units: 0`
-- Custom domains: `[[routes]]` double bracket, no wildcards, add `workers_dev = true`
-- Worker upload limit: **3 MiB gzipped** on free tier (10 MiB on paid). Wrangler reports `gzip:` — only that number counts. Follow the 5 Bundle Size Rules above
-- **D1 schema-drift fails at runtime, not compile-time.** Migrations that DROP+CREATE a table (e.g. `0059_domains.sql` renamed `slug`→`gid`, `verified`→`verified_at`) silently break any code that queries the old columns — typecheck passes, deploy succeeds, the route 500s in production. After any DROP+CREATE migration, grep the codebase for the old column names and fix call sites BEFORE deploying
-- **Error responses get the same `cache-control` as success responses.** Astro's Layout sets `public, max-age=300, s-maxage=86400, stale-while-revalidate=604800` on every render including 5xx pages. A bad deploy will be cached at the CF edge for 24h. When diagnosing, always bust the cache: `curl "https://host/path?_t=$(date +%s)"`. Consider a middleware rule that strips `cache-control` on `>= 500` status
-
----
-
-*Deploy is the closed loop. W0 baseline in, health check out. If health fails, mark() is blocked. Determinism: every step reports numbers, every number gets marked.*
+`release-manager` is told to read it. If you are reading this page to *run* a
+deploy, you are on the wrong side of the door — see the top of this file.

@@ -1,142 +1,144 @@
 #!/usr/bin/env bun
-/**
- * w4-rubric.ts — W4 rubric scoring with Anthropic SDK prompt caching
- *
- * Runs 6 Haiku calls in parallel (goal-fit, security, stability, simplicity,
- * speed, adversarial). The static rubric + spec block is cached — each call
- * pays only for the unique diff/files suffix.
- *
- * Usage:
- *   bun .claude/scripts/w4-rubric.ts --files <file,...>
- *
- * Output: JSON to stdout — { composite, gate, dimensions, adversarial }
- * Falls back: exits 2 if ANTHROPIC_API_KEY missing (caller spawns agents).
- */
+// w4-rubric.ts — the TASK rubric judge (5 axes, no goal-fit).
+//
+// This computes the `task` rubric, NOT the in-cycle W4 cycle gate. The two are
+// different by design: a diff handed to this script carries no plan context, so
+// goal-fit cannot be scored here. The cycle gate adds goal-fit at 0.30 and gates
+// on it at >= 0.50 — see .claude/commands/do.md § W4. Its output is labelled
+// `task-composite` so it can never be read as a cycle verdict.
+//
+// Weights and axis definitions come from rubric-weights.json — the single
+// source. Do not restate them here.
+//
+// Usage: w4-rubric.ts [edge] [--self-test] [--gate 0.65]
+// Reads diff from stdin. Exits 0=pass, 1=fail, 2=defer-to-agent.
+import { readFileSync, existsSync } from 'fs'
 
-import Anthropic from "@anthropic-ai/sdk";
-import { readFileSync, existsSync } from "fs";
-import { execFileSync } from "child_process";
-import { join } from "path";
+const args = process.argv.slice(2)
+const selfTest = args.includes('--self-test')
+const edge = args.find(a => !a.startsWith('--')) ?? (process.env.DO_SLUG ? `do/${process.env.DO_SLUG}` : 'do/unknown')
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  process.stderr.write("[w4-rubric] no ANTHROPIC_API_KEY — falling back to agent spawn\n");
-  process.exit(2);
+// The weights file sits beside this script. A missing or malformed file is a
+// hard failure, never a fallback to inlined numbers — a silent divergence
+// between the file and a hardcoded copy is the exact drift this file removes.
+const WEIGHTS_PATH = new URL('./rubric-weights.json', import.meta.url).pathname
+type Rubric = {
+  gate: number
+  task: { weights: Record<string, number> }
+  definitions: Record<string, string>
 }
-
-const SCRIPTS_DIR = new URL(".", import.meta.url).pathname;
-const RUBRICS_PATH = join(SCRIPTS_DIR, "../../plans/rubrics.md");
-const SPEC_PATH = ".w2-spec.json";
-
-const DIMS = [
-  { key: "goal-fit",    weight: 0.35, instruction: "Score goal-fit: does the diff advance the plan outcome? Read Goal/deliverable from the spec. 0 = no movement, 1 = fully delivers." },
-  // These are grep-pattern strings sent to the LLM for it to search — not code being executed.
-  { key: "security",    weight: 0.20, instruction: "Score security: check for hardcoded secrets, calls to eval, dangerouslySetInnerHTML, missing Zod at API boundaries, wildcard CORS, TypeQL string concat. 1 = all greps return 0." },
-  { key: "stability",   weight: 0.20, instruction: "Score stability: check new `any`, @ts-ignore without comment, silent returns, retired names (knowledge|connections|people|node|scent|alarm|trail|colony). 1 = all zero." },
-  { key: "simplicity",  weight: 0.15, instruction: "Score simplicity: focused single-purpose files, functions under 20 lines, no backwards-compat shims or WHAT comments. 1 = tight, no ceremony." },
-  { key: "speed",       weight: 0.10, instruction: "Score speed: does the diff increase bundle size or build time? Any new client:load where client:idle suffices? 1 = no regressions." },
-  { key: "adversarial", weight: 0,    instruction: "Adversarial check: is there any finding that should block this cycle? If yes, name it briefly. If nothing blocks, return null for 'finding'." },
-] as const;
-
-function loadRubrics(): string {
-  if (existsSync(RUBRICS_PATH)) return readFileSync(RUBRICS_PATH, "utf8");
-  return "Score each dimension 0.0–1.0. Explain why in one sentence. Name the specific gap in 'improve', or 'clean' if 1.0.";
-}
-
-function loadSpec(): string {
-  if (existsSync(SPEC_PATH)) return readFileSync(SPEC_PATH, "utf8").slice(0, 3000);
-  return "{}";
-}
-
-function diffStat(): string {
-  try { return execFileSync("git", ["diff", "HEAD", "--stat"], { encoding: "utf8" }).slice(0, 1000); }
-  catch { return "(no diff)"; }
-}
-
-function fileSnippets(files: string[]): string {
-  return files
-    .map(f => {
-      try { return `### ${f}\n\`\`\`\n${readFileSync(f, "utf8").slice(0, 1500)}\n\`\`\``; }
-      catch { return `### ${f}\n[not found]`; }
-    })
-    .join("\n\n");
-}
-
-type DimResult = { key: string; score: number; why: string; improve: string; finding?: string | null };
-
-async function scoreDim(
-  client: Anthropic,
-  cachedSystem: Anthropic.TextBlockParam[],
-  dim: typeof DIMS[number],
-): Promise<DimResult> {
-  const res = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 256,
-    system: cachedSystem as any,
-    messages: [{
-      role: "user",
-      content: `${dim.instruction}
-
-The rubric, cycle spec, diff summary, and touched files are in the system context above.
-
-Return compact JSON only:
-${dim.key === "adversarial"
-  ? '{"finding": "<what blocks or null>"}'
-  : '{"score": 0.0–1.0, "why": "<one sentence>", "improve": "<gap or clean>"}'}`,
-    }],
-  });
-
-  const text = res.content.filter(b => b.type === "text").map(b => (b as Anthropic.TextBlock).text).join("");
+function loadRubric(): Rubric {
   try {
-    const match = text.match(/\{[\s\S]*?\}/);
-    if (match) return { key: dim.key, score: 0.5, why: "", improve: "", ...JSON.parse(match[0]) };
-  } catch {}
-  return { key: dim.key, score: 0.5, why: "parse error", improve: text.slice(0, 80) };
+    return JSON.parse(readFileSync(WEIGHTS_PATH, 'utf8')) as Rubric
+  } catch (e) {
+    process.stderr.write(`[w4-rubric] cannot read ${WEIGHTS_PATH}: ${(e as Error).message}\n`)
+    process.exit(1)
+    throw e // unreachable — process.exit never returns; satisfies the checker without @types/node
+  }
+}
+const RUBRIC = loadRubric()
+const W = RUBRIC.task.weights
+const AXES = Object.keys(W)
+const wSum = AXES.reduce((n, k) => n + W[k], 0)
+if (Math.abs(wSum - 1) > 1e-9) {
+  process.stderr.write(`[w4-rubric] task weights sum to ${wSum}, not 1.00 — refusing to score\n`)
+  process.exit(1)
+}
+
+const gate = parseFloat(args.find(a => a.startsWith('--gate='))?.slice(7) ?? String(RUBRIC.gate))
+// integration is deterministic when the caller knows it (W4 computes it from
+// .w2-surface-checklist.json + do-reconcile.sh sdk|navigation|docs and passes
+// --integration=0.NN); only when absent does the LLM score it from the diff.
+const integrationArg = args.find(a => a.startsWith('--integration='))?.slice(14)
+
+function composite(s: Record<string,number>) {
+  return AXES.reduce((n, k) => n + s[k] * W[k], 0)
+}
+
+// --self-test vectors. `pass` is the historical fixture; `fail` exists so the
+// gate can be shown going RED. A gate that has only ever been observed passing
+// is indistinguishable from a gate that cannot fail.
+const SELF_TEST_SCORES: Record<string, number> =
+  { security: 0.90, stability: 1.00, simplicity: 0.80, integration: 0.85, speed: 0.75 }
+const SELF_TEST_FAIL: Record<string, number> =
+  { security: 0.40, stability: 0.40, simplicity: 0.40, integration: 0.40, speed: 0.40 }
+
+async function judge(diff: string): Promise<Record<string,number>> {
+  const envFile = process.env.ONE_ENV_FILE ?? process.env.DO_ENV_FILE ?? 'one.ie/web/.env'
+  let key = process.env.OPENROUTER_API_KEY ?? ''
+  if (!key && existsSync(envFile)) {
+    const m = readFileSync(envFile,'utf8').split('\n').find(l => l.startsWith('OPENROUTER_API_KEY='))
+    if (m) key = m.slice(m.indexOf('=')+1).replace(/^["']|["']$/g,'')
+  }
+  if (!key) { process.stderr.write('[w4-rubric] no OPENROUTER_API_KEY — deferring\n'); process.exit(2) }
+  const gwAccount = process.env.CF_AI_GATEWAY_ACCOUNT_ID
+  const gwId = process.env.CF_AI_GATEWAY_ID
+  const orBase = gwAccount && gwId
+    ? `https://gateway.ai.cloudflare.com/v1/${gwAccount}/${gwId}/openrouter`
+    : 'https://openrouter.ai/api/v1'
+  const res = await fetch(`${orBase}/chat/completions`, {
+    method:'POST', headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
+    body:JSON.stringify({ model:'anthropic/claude-haiku-4-5', max_tokens:80,
+      messages:[
+        // Every axis carries its definition from rubric-weights.json. An axis
+        // scored without one is scored against whatever the model invents that
+        // run — `stability` carried 0.25 weight undefined until 2026-08-02.
+        {role:'system',content:
+          `Score this diff on ${AXES.join('/')} (0-1). Definitions:\n`
+          + AXES.map(k => `- ${k}: ${RUBRIC.definitions[k] ?? '(UNDEFINED — score 0 and say so)'}`).join('\n')
+          + `\nJSON only, exactly these keys: {${AXES.map(k => `"${k}":0.8`).join(',')}}`},
+        {role:'user',content:diff.slice(0,3000)}
+      ]})
+  })
+  const raw = ((await res.json()) as {choices?:{message?:{content?:string}}[]}).choices?.[0]?.message?.content ?? ''
+  const m2 = raw.match(/\{[^}]+\}/)
+  if (!m2) { process.stderr.write('[w4-rubric] bad LLM response — deferring\n'); process.exit(2) }
+  const d = JSON.parse(m2[0]) as Record<string,unknown>
+  const c = (v:unknown) => Math.max(0, Math.min(1, Number(v)||0))
+  // An axis the model omitted must not silently become 0 inside a weighted sum —
+  // that reads as "scored badly" when it means "not scored at all".
+  const missing = AXES.filter(k => d[k] === undefined)
+  if (missing.length) {
+    process.stderr.write(`[w4-rubric] LLM omitted ${missing.join(',')} — deferring\n`)
+    process.exit(2)
+  }
+  return Object.fromEntries(AXES.map(k => [k, c(d[k])])) as Record<string, number>
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const filesIdx = args.indexOf("--files");
-  const files = filesIdx >= 0 ? args[filesIdx + 1].split(",").filter(Boolean) : [];
-
-  const client = new Anthropic();
-  const rubricText = loadRubrics();
-  const spec = loadSpec();
-  const diff = diffStat();
-  const snippets = fileSnippets(files);
-
-  // ONE cached block — rubric + spec + diff + snippets are byte-identical across all
-  // 6 parallel dimension calls. Caching them here (instead of repeating diff+snippets
-  // in each user message) turns 6× re-tokenization into 1 cache write + 5 cache reads.
-  const cachedSystem: Anthropic.TextBlockParam[] = [{
-    type: "text",
-    text: `# Rubric Reference\n\n${rubricText}\n\n# Cycle Spec\n\`\`\`json\n${spec}\n\`\`\`\n\n# Diff summary\n${diff}\n\n# Touched files\n${snippets}`,
-    cache_control: { type: "ephemeral" },
-  } as any];
-
-  const results = await Promise.all(
-    DIMS.map(dim => scoreDim(client, cachedSystem, dim))
-  );
-
-  const scored = results.filter(r => r.key !== "adversarial");
-  const composite = scored.reduce((sum, r) => {
-    const w = DIMS.find(d => d.key === r.key)!.weight;
-    return sum + r.score * w;
-  }, 0);
-
-  const goalFit = scored.find(r => r.key === "goal-fit")?.score ?? 0;
-  const adversarial = results.find(r => r.key === "adversarial");
-
-  const output = {
-    composite: Math.round(composite * 100) / 100,
-    gate: composite >= 0.65 && goalFit >= 0.50,
-    dimensions: Object.fromEntries(
-      scored.map(r => [r.key, { score: r.score, why: r.why, improve: r.improve }])
-    ),
-    adversarial: adversarial?.finding ?? null,
-  };
-
-  process.stderr.write(`[w4-rubric] composite=${output.composite} gate=${output.gate}\n`);
-  process.stdout.write(JSON.stringify(output, null, 2));
+  const failFixture = args.includes('--self-test-fail')
+  const scores: Record<string, number> = (selfTest || failFixture)
+    ? Object.fromEntries(AXES.map(k => [k, (failFixture ? SELF_TEST_FAIL : SELF_TEST_SCORES)[k] ?? 0.80]))
+    : await judge(await new Promise<string>(r => { let s=''; process.stdin.on('data',c=>s+=c); process.stdin.on('end',()=>r(s)) }))
+  // deterministic override wins: the surface checklist is truth, not vibes
+  if (integrationArg !== undefined) scores.integration = Math.max(0, Math.min(1, parseFloat(integrationArg)||0))
+  const comp = composite(scores)
+  const baseUrl = process.env.DO_SIGNAL_URL ?? 'https://one.ie'
+  if (!selfTest && edge !== 'do/unknown') {
+    // /api/mark-dims is gate()-guarded (security-gates #5) — it authenticates a service
+    // caller by Bearer === GATEWAY_API_KEY. Resolve it the same way judge() resolves the
+    // OpenRouter key (process.env → DO_ENV_FILE). Without it the marks silently 401 and
+    // the /do rubric-learning signal stops landing — a break the #5 gate introduced.
+    const envFile = process.env.ONE_ENV_FILE ?? process.env.DO_ENV_FILE ?? 'one.ie/web/.env'
+    let gwKey = process.env.GATEWAY_API_KEY ?? ''
+    if (!gwKey && existsSync(envFile)) {
+      const m = readFileSync(envFile,'utf8').split('\n').find(l => l.startsWith('GATEWAY_API_KEY='))
+      if (m) gwKey = m.slice(m.indexOf('=')+1).replace(/^["']|["']$/g,'')
+    }
+    await fetch(`${baseUrl}/api/mark-dims`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json', ...(gwKey ? {'Authorization':`Bearer ${gwKey}`} : {})},
+      body:JSON.stringify({edge,dims:scores}),
+    }).catch(()=>{})
+  }
+  // `task-composite`, never bare `composite` — the cycle gate carries goal-fit
+  // at 0.30 and this number does not. Anything that logs, compares, or ratchets
+  // on it is comparing a task score, and the label has to say so.
+  const dims = AXES.map(k => `${k}=${scores[k].toFixed(2)}`).join(' ')
+  process.stdout.write(
+    `[w4-rubric] task-composite=${comp.toFixed(2)} ${dims} gate=${gate} ${comp>=gate?'PASS':'FAIL'}`
+    + ` (task rubric — no goal-fit; NOT the in-cycle W4 verdict)\n`)
+  process.exit(comp >= gate ? 0 : 1)
 }
 
-main().catch(e => { process.stderr.write(`[w4-rubric] error: ${e}\n`); process.exit(1); });
+main()

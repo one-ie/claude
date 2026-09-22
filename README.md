@@ -1,204 +1,214 @@
-# The Substrate
+# @oneie/claude
+
+One command. One substrate. Install this plugin and Claude Code gains two things: a complete build workflow that takes an idea to proven, shipped software — and direct access to the ONE substrate, the backend that makes any application composable by agents.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   70 lines.  Two fields.  Concurrency safe.  AI agents.                     │
-│                                                                             │
-│   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                                                                     │   │
-│   │   { receiver, payload }                                             │   │
-│   │                                                                     │   │
-│   │   That's all that flows.                                            │   │
-│   │                                                                     │   │
-│   └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+/do "your idea here"
 ```
 
 ---
 
-## The Pattern
+## Install
+
+```bash
+claude plugin install @oneie/claude
+```
+
+Then connect to the ONE substrate:
 
 ```
-100 million years ago     →  Ants discovered it
-500 million years ago     →  Brains discovered it
-2017                      →  Transformers rediscovered it
-
-Nodes that compute.
-Edges that connect.
-Weights that learn.
-Signals that flow.
-No controller.
+/setup
 ```
+
+That's it. The `/do` workflow is available immediately. The substrate tools activate the moment `ONEIE_API_KEY` is set.
 
 ---
 
-## The API
+## What you get
 
-```typescript
-// ENVELOPE
-{ receiver: string, payload?: unknown }
+### `/do` — idea to shipped
 
-// UNIT
-.on(name, (payload, emit, ctx) => result)    // define task
-.then(name, result => envelope)               // define continuation
-.role(name, task, context)                    // context-bound task
-
-// COLONY
-spawn(id)           // create unit
-send(envelope)      // flow signal
-mark(edge)          // strengthen
-smell(edge)         // read weight
-fade(rate)          // decay all
-highways(n)         // top n edges
-
-// CONTEXT
-ctx.from            // who sent this
-ctx.self            // who am I
-emit(envelope)      // send more (carries my identity)
-```
-
----
-
-## Skills
+One command walks the entire build lifecycle. You confirm the goal once. Everything below it is owned by the workflow.
 
 ```
-┌──────────────┬────────────────────────────────────────────────┐
-│ /astro       │ Pages, islands, SSR, client directives         │
-├──────────────┼────────────────────────────────────────────────┤
-│ /react19     │ Actions, use(), transitions, optimistic        │
-├──────────────┼────────────────────────────────────────────────┤
-│ /reactflow   │ Node graphs, custom nodes/edges, dark theme    │
-├──────────────┼────────────────────────────────────────────────┤
-│ /shadcn      │ Cards, badges, tabs, dark theme components     │
-├──────────────┼────────────────────────────────────────────────┤
-│ /typedb      │ TypeQL schema, inference, queries              │
-└──────────────┴────────────────────────────────────────────────┘
+IDEA → AIM → PROMISE → SURVEY → [INVESTIGATE] → DESIGN → PLAN → BUILD → TEST → VERIFY → PROVE → TEACH → SHIP → LEARN
 ```
 
----
+The workflow is a spine of artifacts on disk. A phase whose artifact is already **true** — it both *exists* and *reconciles* with its canon (`true ≡ exists ∧ reconciles`) — is skipped. Missing → write it. Stale → rewrite it. True → skip. Point `/do` at a blank idea and it makes every artifact true. Point it at code that's missing tests and docs and it backfills only those.
 
-## Architecture
+A cheap probe at the start sizes the work:
 
-```
-src/engine/
-├── substrate.ts          # 70 lines — THE FOUNDATION
-├── unit.ts               # Legacy (compatible)
-├── world.ts             # Legacy (compatible)
-└── index.ts              # Exports
+| Tier | Runs | Agents |
+|------|------|--------|
+| PATCH (a typo) | code → verify | 0 |
+| FIX | survey → code → tests → prove | 2–3 |
+| FEATURE | full spine + clarify + analyze | full fan-out |
+| SCHEMA | FEATURE + substrate reconcile | full fan-out + Opus |
 
-src/components/
-├── graph/
-│   ├── ColonyGraph.tsx   # Visualize
-│   └── ColonyEditor.tsx  # Interactive (record, replay, AI mode, heat map)
-├── panels/
-│   └── HighwayPanel.tsx  # Strongest paths
-└── AgentWorkspace.tsx    # Main workspace
+You never pick the tier. The probe does, and it defaults down when unsure.
 
-docs/
-└── code.md               # The substrate specification
-```
+**Definition of done — enforced, not hoped for:**
 
----
+1. The agreed goal is actually met (goal-fit gate)
+2. Every shippable deliverable has a test asserting it
+3. No regression — coherence ratchet held, `must_not_break` preserved
+4. Proven live, reachable, matches the promise
+5. Surfaces wired into navigation, not orphaned
+6. Docs in sync — no stale name, no dead link
+7. Rubric clears the bar
+8. Loop closed — recorded result, written learning
 
-## AI Agent Patterns
+A typo clears 1, 3, 7, 8. A feature clears all eight.
 
-```typescript
-// REQUEST / RESPONSE
-.on('ask', ({ question }, emit, { self }) => {
-  emit({ receiver: 'oracle', payload: { question, replyTo: self } })
+### The ONE substrate — 13 operations via MCP
+
+When `ONEIE_API_KEY` is set, Claude Code gains direct access to the ONE substrate as native tools.
+
+Every application is composed from the same thirteen operations:
+
+```ts
+// A merchant publishes a product
+await c.signal('world:create-thing', {
+  name: 'Midnight Linen Jacket', type: 'product', price: 295
 })
 
-// CLAIM TASK
-.on('claim', ({ taskId }, emit, { from }) => {
-  !claims[taskId] && (claims[taskId] = from,
-    emit({ receiver: from, payload: { claimed: taskId } }))
-})
+// A buyer completes a purchase — settle the payment, then mark the path that converted
+await c.payWeight('buyer', 'merchant', 'order', 295.00)   // USDC settled
+await c.mark('buyer→merchant:order')                      // strengthen what worked
 
-// PAYMENT
-.on('pay', ({ to, amount }, emit, { from }) => {
-  balances[from] >= amount && (
-    balances[from] -= amount,
-    balances[to] += amount,
-    emit({ receiver: to, payload: { received: amount, from } }))
-})
-
-// SWARM
-.on('join', ({ capabilities }, emit, { from }) => {
-  registry[from] = capabilities
-  Object.keys(registry).forEach(id =>
-    emit({ receiver: id, payload: { joined: from } }))
-})
-
-// STREAMING
-.on('ingest', async ({ url }, emit) => {
-  const stream = await connect(url)
-  stream.on('frame', f => emit({ receiver: 'process', payload: f }))
-})
+// The substrate asks: what should we surface next?
+const { target } = await c.select('product')
 ```
+
+Four calls. A commerce platform. The substrate records what converted, strengthens those paths, and starts surfacing better results automatically.
+
+**MCP tools available after `/setup`:**
+
+| Group | Tools |
+|-------|-------|
+| Substrate | `signal` · `ask` · `mark` · `warn` · `fade` · `follow` · `select` · `recall` · `reveal` · `forget` · `frontier` · `know` · `highways` |
+| Lifecycle | `auth_agent` · `sync_agent` · `publish_agent` · `list_agents` · `list_skills` · `register` · `pay` |
+| Observability | `stats` · `health` · `revenue` · `export_highways` |
+
+The same operation — `signal`, `mark`, `select` — is available from TypeScript via `@oneie/sdk`, from the terminal via `@oneie/cli`, from any MCP-connected tool via `@oneie/mcp`, and now from Claude Code via this plugin. Your agents and your tools speak the same language.
 
 ---
 
-## Rules
+## What this replaces
 
-```
-.claude/rules/
-├── engine.md     # src/engine/*.ts — Zero returns, positive flow
-├── react.md      # *.tsx — React 19 patterns
-└── astro.md      # *.astro — Islands, directives
-```
+Building an application on ONE replaces seven separate services:
+
+| Usually built separately | ONE equivalent |
+|--------------------------|----------------|
+| Database + ORM | TypeDB — six dimensions, typed schema |
+| Auth + roles | Actors with scoped keys; revoking is a `warn` |
+| Recommendation engine | `select()` — pheromone routing |
+| Message queue | `signal()` — async, tagged, delivered |
+| Webhooks | `sub()` — any HTTPS URL becomes a receiver |
+| Payments | `mark()` with `weight` + `currency` |
+| AI agent framework | Every actor is an agent; the substrate is the runtime |
+
+You do not bolt these together. You get them as a consequence of using the substrate correctly.
 
 ---
 
 ## Commands
 
+| Command | What |
+|---------|------|
+| `/do` | Front door — idea to shipped, proven feature |
+| `/setup` | Connect to the ONE substrate, verify, confirm MCP tools |
+| `/close` | Close a cycle — learnings, signals, doc-sync |
+| `/create` | Scaffold a new artifact from a template |
+| `/see` | Inspect substrate state |
+| `/deploy` | 8-step deploy pipeline |
+| `/sync` | TypeDB ↔ KV ↔ D1 sync |
+| `/release` | Changelog + npm publish |
+
+---
+
+## The BUILD engine
+
+When `/do` reaches the `code` phase it runs four waves:
+
+**W1 — Recon** — reads the relevant files at the cheapest model that can decide. Checks open improvement items first. Receipt capped at 400 words.
+
+**W2 — Decide** — the one phase that stays single. Writes the goal/deliverable/UX gate, runs the compress check before any new primitive, outputs exact diff specs.
+
+**W3 — Edit** — spawns one Sonnet agent per file, all in a single message. Pre-validates every anchor. Soft-resumes if interrupted.
+
+**W4 — Verify** — bash first, zero tokens: `bun run verify`, the goal gate, then `reconciles` — one predicate over seven canons (`substrate · dictionary · authority · sdk · design · navigation · types`) that subsumes the old reconcile, compress, promise-check, and doc-sync gates — and the ratchet (`delta_tsc ≤ 0`). Rubric only if the bash gates pass.
+
+```
+composite = 0.35·goal-fit + 0.20·security + 0.20·stability + 0.15·simplicity + 0.10·speed
+gate: composite ≥ 0.65  AND  goal-fit ≥ 0.50  AND  delta_tsc ≤ 0
+```
+
+A cycle that runs zero LLM calls is a good cycle.
+
+---
+
+## Templates
+
+Each spine stop that writes an artifact has a template — copied, never written from scratch, under the naming law `template-<suffix>.md → <slug>-<suffix>.md`. One proof observable is named once at PROMISE and referenced (never restated) all the way to TEACH.
+
+| Template | Stop | Writes |
+|----------|------|--------|
+| `template-feature.md` | PROMISE | `<slug>.md` — the promise + the one proof observable PROVE checks |
+| `template-plan.md` | DESIGN | `<slug>-plan.md` — design, pre-mortem, 7-canon reconcile gate |
+| `template-todo.md` | PLAN | `<slug>-todo.md` — cycles, parallel budget, DAG, testing policy |
+| `template-agent.md` | BUILD | `.claude/agents/<name>.md` — agent contract + one filled example |
+| `template-tests.md` | TEST | the cycle's demo gate — assert the destination, red before green |
+| `template-teach.md` | TEACH | `<slug>-doc.md` — the journey doc for humans *and* agents |
+
+---
+
+## Agents as builders
+
+Agents are actors. They have the same thirteen operations as any other actor — the same API key, the same signal grammar, the same read surfaces. A human developer and an AI agent calling `signal` land in the same substrate. Same paths. Same pheromone.
+
+An agent wakes at 3am. It reads the `learning` dimension and finds a cluster of signals that dissolved — users asked for something nobody delivered. It reads `paths` to find which actors have skills close to what was asked. It creates a new thing, publishes it, signals the three closest actors. By morning, a new skill exists that did not exist at midnight. No ticket. No sprint. No deployment pipeline approval.
+
+The substrate learns from agents the same way it learns from humans. Every signal deposits pheromone. Every outcome marks or warns the path. A platform built on ONE improves continuously — not because someone configured a recommendation engine, but because the structure of the substrate makes learning unavoidable.
+
+---
+
+## Environment
+
+| Var | Default | What |
+|-----|---------|------|
+| `ONEIE_API_KEY` | required for substrate tools | Your workspace API key |
+| `ONEIE_API_URL` | `https://api.one.ie` | Override for self-hosted |
+
+Get your API key at [one.ie/settings/keys](https://one.ie/settings/keys).
+
+---
+
+## Peer dependencies
+
+The plugin wires up the MCP server automatically. Install the packages your project needs:
+
 ```bash
-bun dev           # localhost:4321
-bun build         # Production
-bun preview       # Preview build
+# SDK — TypeScript client
+npm install @oneie/sdk
+
+# MCP server — substrate tools in Claude Code (required for /setup)
+npm install @oneie/mcp
+
+# CLI — terminal access to the substrate
+npm install -g @oneie/cli
 ```
 
 ---
 
-## The Loop
+## The insight
+
+Every other BaaS was built when the application's users were humans. ONE was built for the era where the application's users include agents, the application logic can itself be an agent, and the intelligence accumulates in the substrate automatically.
+
+This plugin is the proof. We built our entire development workflow on the ONE substrate — `/do` signals, marks, and learns across every cycle. It is a Claude Code plugin. It is also a ONE application. Install it and you get both.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   REINFORCE                         DECAY                       │
-│   (learn)                           (forget)                    │
-│                                                                 │
-│   signal succeeds                   time passes                 │
-│        │                                 │                      │
-│        ▼                                 ▼                      │
-│   edge strengthens                  edge weakens                │
-│        │                                 │                      │
-│        ▼                                 ▼                      │
-│   more signals                      signals reroute             │
-│        │                                 │                      │
-│        ▼                                 ▼                      │
-│   SUPERHIGHWAY                      edge gone                   │
-│                                                                 │
-│   Both loops. Always. That's intelligence.                      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+/do "your idea here"
 ```
 
----
-
-## The Insight
-
-```
-Ants don't talk to each other.
-Neurons don't talk to each other.
-They modify the connections between them.
-Other signals read those modifications.
-
-That's intelligence.
-That's what this is.
-
-70 lines.
-Two fields.
-Build everything.
-```
+[one.ie](https://one.ie) · [api.one.ie](https://api.one.ie) · [github.com/one-ie/claude](https://github.com/one-ie/claude)

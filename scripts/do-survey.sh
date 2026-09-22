@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# do-survey.sh — P0.5 SURVEY. Grep the 4 surfaces + plans/ for an existing ≥70% match so
+# do-survey.sh — P0.5 SURVEY. Grep the 4 surfaces + text/ for an existing ≥70% match so
 # /do stops rebuilding what already ships. Emits a simplicity verdict. (The cheapest feature
 # is the one you already have.) Always exits 0 — it informs, it doesn't gate.
 # Usage:  do-survey.sh <keyword>

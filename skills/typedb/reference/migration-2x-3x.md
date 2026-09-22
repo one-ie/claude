@@ -1,6 +1,24 @@
 # TypeDB 2.x to 3.x Migration Reference
 
-> Complete guide for migrating from TypeDB 2.x to 3.x
+> Complete guide for migrating from TypeDB 2.x to 3.x.
+>
+> **Why this file still earns its place, and how to read it.** Nobody here is
+> migrating a 2.x database — this repo has always been 3.x, and prod + local
+> both run **3.12.1**. Its value is as the **rule→fun translation guide** and
+> the *"why does this old snippet not work"* lookup: 2.x TypeQL is all over
+> the public internet, older blog posts, and LLM training data, so the failure
+> mode it prevents is real and recurring. `SKILL.md` used to point at
+> `packages/typedb-inference-patterns/` for that translation; **that directory
+> does not exist**, which leaves this file as the only place it lives.
+>
+> Read the "2.x" blocks as *things you will encounter and must reject*, never
+> as things to run. The rule→fun section here is the mechanical table; the
+> worked, live-verified examples are in `SKILL.md` § *Inference Rules
+> (Emergence Patterns)*.
+>
+> Two corrections to apply as you read: `return first true` and any
+> `if … then … else` expression are **rejected on 3.12.1** — bind a `let`
+> first. See `SKILL.md`'s VERIFIED table.
 
 ---
 

@@ -1,47 +1,74 @@
 ---
 name: reactflow
-description: Build interactive node-based visualizations for envelope chains using ReactFlow with custom nodes, edges, and dark theme
+description: Node-based graph surfaces in `one.ie/web` built on @xyflow/react v12 — WorkflowFlow, OrgChartView, SignalGraph, LifecycleFlow, PathGraph, TypesCanvas. Covers the v12 NodeProps/EdgeProps generic pattern the repo actually uses, node/edge type registries, 6-token styling inside a canvas, dagre auto-layout, and client:only mounting. Use when adding a custom node or edge, wiring a nodeTypes registry, fixing a graph that renders unstyled or fails tsc, or laying out substrate paths.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # ReactFlow Development
 
-Create interactive flow visualizations for the Envelope System using ReactFlow.
+Interactive graph surfaces in `one.ie/web`, built on `@xyflow/react` **12.10.2**
+(declared `^12.10.2`).
+
+This is a live, heavily-used dependency — **25 files** under
+`one.ie/web/src/components/` import it. Read one of them before writing a new
+graph; the conventions below are extracted from them, not from upstream docs.
+
+| Surface | Entry | Node registry |
+|---|---|---|
+| Workflow canvas | `components/workflows/WorkflowFlow.tsx` | `NODE_TYPES` — 8 step kinds + `chain` + `route` |
+| Org chart | `components/org/OrgChartView.tsx` | `{ role: RoleNode }` |
+| Signal graph | `components/org/SignalGraph.tsx` | `{ role: RoleNode }` · `{ path: PathEdge }` |
+| Lifecycle | `components/lifecycle/LifecycleFlow.tsx` | 8 node types · `{ lifecycle: LifecycleEdge }` |
+| Paths | `components/paths/PathGraph.tsx` + `path-flow.ts` | substrate strength/resistance |
+| Types canvas | `components/data/TypesCanvas.tsx` | dagre auto-layout |
+| Router brain | `components/do/RouterBrain.tsx` | `{ shape, model }` · `{ 'signal-edge': SignalEdge }` |
+| AI canvas | `components/ai-elements/{canvas,node,edge,controls}.tsx` | generic primitives |
 
 ## Works With
 
 | Skill      | Load when                                                                                    |
 |------------|----------------------------------------------------------------------------------------------|
 | `/react19` | Custom nodes/edges are React components — ref-as-prop, transitions for non-blocking updates.  |
-| `/typedb`  | Edge weights render `path.strength - path.resistance`; query highways from TypeDB for layout. |
-| `/signal`  | Every node/edge click emits `ui:graph:<action>` — graph interactions feed pheromone.          |
-| `/astro`   | Graph pages are Astro routes — hydrate with `client:only="react"` (canvas can't SSR).        |
-| `/shadcn`  | Side panels, node detail sheets, toolbars — shadcn primitives on dark-theme tokens.           |
+| `/typedb`  | Edge weights render `path.strength` / `path.resistance`; query highways for layout. |
+| `/astro`   | Graph pages are Astro routes — mount `client:only="react"` (the canvas cannot SSR).        |
+| `/shadcn`  | Side panels, node detail sheets, toolbars.           |
+| `/puck`    | `OrgChartView` and `WorkflowFlow` are lazy-loaded as Puck blocks in `lib/puck/config.tsx`. |
+
+Every node/edge click emits `emitClick('ui:<surface>:<action>')` from
+`@/lib/ui-signal` — see `.claude/rules/ui.md`. `rules/design.md` auto-loads on
+these files too: a canvas is not exempt from the 6-token system.
 
 ## When to Use This Skill
 
-- Visualize envelope chains as node graphs
-- Create custom node types for agents and envelopes
-- Build interactive flow editors
-- Implement animated edge connections
-- Add pan, zoom, and minimap features
+- Add a custom node or edge type to an existing canvas
+- Build a new graph surface over substrate data
+- Fix a node component that fails `tsc` on `NodeProps`
+- Lay out a graph with dagre or a hand-rolled tier layout
+- Style a canvas so it follows the workspace brand tokens
 
 ## Installation
 
-```bash
-bun add @xyflow/react
+Already installed — do not re-add:
+
+```
+@xyflow/react   ^12.10.2   (one.ie/web/package.json)
+@dagrejs/dagre  ^3.0.0     (used by components/data/TypesCanvas.tsx)
 ```
 
 ## Core Setup
 
+Register node and edge types as **module-level constants**. Defining them inside
+the component body creates a new object identity every render and ReactFlow
+remounts every node.
+
 ```tsx
-// src/components/flow/FlowCanvas.tsx
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
+  Panel,
   useNodesState,
   useEdgesState,
   type Node,
@@ -49,318 +76,274 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
+import { TriggerNode } from './nodes/TriggerNode';
 import { AgentNode } from './nodes/AgentNode';
-import { EnvelopeNode } from './nodes/EnvelopeNode';
 
-// Register custom node types
-const nodeTypes = {
-  agent: AgentNode,
-  envelope: EnvelopeNode,
-};
+const NODE_TYPES = { trigger: TriggerNode, agent: AgentNode };
 
-export function FlowCanvas() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+export function FlowCanvas({ initialNodes, initialEdges }: {
+  initialNodes: Node[];
+  initialEdges: Edge[];
+}) {
+  const [nodes, , onNodesChange] = useNodesState(initialNodes);
+  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
 
   return (
-    <div className="h-full w-full bg-[#0a0a0f]">
+    <div className="h-full w-full bg-background">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
+        nodeTypes={NODE_TYPES}
         fitView
-        className="bg-[#0a0a0f]"
+        panOnScroll
+        proOptions={{ hideAttribution: true }}
       >
-        <Background color="#1e293b" gap={20} />
-        <Controls className="bg-[#0f0f14] border-[#1e293b]" />
-        <MiniMap
-          nodeColor={(node) => {
-            if (node.type === 'agent') return '#3b82f6';
-            return '#22c55e';
-          }}
-          className="bg-[#0f0f14] border-[#1e293b]"
-        />
+        <Background bgColor="var(--sidebar)" />
+        <Controls showInteractive={false} />
+        <MiniMap pannable zoomable />
       </ReactFlow>
     </div>
   );
 }
 ```
 
+`proOptions={{ hideAttribution: true }}` is on every canvas in the repo.
+`<Background>` takes `bgColor` as a CSS value — pass a token var, never a hex.
+
 ## Custom Nodes
 
-### Agent Node
+### The v12 typing pattern
+
+`NodeProps` in v12 is **not** generic over your data interface. `NodeProps<T>`
+expects a `Node` type, so `NodeProps<AgentNodeData>` fails to compile. Every node
+in this repo uses the same intersection instead:
 
 ```tsx
-// src/components/flow/nodes/AgentNode.tsx
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Badge } from '@/components/ui/badge';
 
-interface AgentNodeData {
+export interface StepNodeData {
   name: string;
-  status: 'ready' | 'waiting' | 'idle' | 'error';
-  actionCount: number;
+  kind: string;
+  paused?: boolean;
+  [key: string]: unknown;   // required — v12 constrains node data to Record<string, unknown>
 }
 
-const statusColors = {
-  ready: 'bg-green-500',
-  waiting: 'bg-amber-500 animate-pulse',
-  idle: 'bg-slate-500',
-  error: 'bg-red-500',
-};
+export type StepNodeProps = Omit<NodeProps, 'data'> & { data: StepNodeData };
+```
 
-export function AgentNode({ data }: NodeProps<AgentNodeData>) {
+The `[key: string]: unknown` index signature is mandatory. Without it TypeScript
+rejects the type when ReactFlow assigns it into `Node['data']`.
+
+For edges the equivalent is an interface extension:
+
+```tsx
+import type { EdgeProps } from '@xyflow/react';
+
+export interface SignalEdgeData {
+  strength: number;
+  resistance: number;
+  traversals: number;
+  isHighway?: boolean;
+  [key: string]: unknown;
+}
+
+interface Props extends EdgeProps {
+  data: SignalEdgeData;
+}
+```
+
+`data` can arrive undefined on a freshly-connected edge — every real edge in the
+repo defaults it: `const d = data ?? { strength: 1, resistance: 0, traversals: 0 }`.
+
+### A step node
+
+Nodes share a presentational shell so the card, badge, and handle styling live in
+one place. `components/workflows/nodes/StepNodeShell.tsx` is that shell; the eight
+kind nodes are ~8 lines each.
+
+```tsx
+// components/workflows/nodes/TriggerNode.tsx — the whole file
+import { STEP_VISUAL } from '../step-visual';
+import { StepNodeShell, type StepNodeProps } from './StepNodeShell';
+
+const { icon, tone, label } = STEP_VISUAL.trigger;
+
+/** Trigger — the workflow's entry point. No inbound handle (nothing precedes it). */
+export function TriggerNode({ data }: StepNodeProps) {
+  return <StepNodeShell icon={icon} label={label} accent={tone} data={data} hasTarget={false} />;
+}
+```
+
+The shell renders a token-styled card and a shared `StepHandle`:
+
+```tsx
+import { Handle, Position } from '@xyflow/react';
+import type { LucideIcon } from 'lucide-react';
+
+export function StepHandle({ type, position, id, color }: {
+  type: 'source' | 'target';
+  position: Position;
+  id?: string;
+  color: string;
+}) {
+  const edge = position === Position.Top ? { top: -5 } : { bottom: -5 };
   return (
-    <div className="px-4 py-3 bg-[#0f0f14] border border-[#1e293b] rounded-lg min-w-[150px]">
-      {/* Input handle */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!bg-blue-500 !w-3 !h-3"
-      />
-
-      {/* Content */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`w-2 h-2 rounded-full ${statusColors[data.status]}`} />
-        <span className="font-medium text-white">{data.name}</span>
-      </div>
-
-      <div className="text-xs text-slate-400">
-        {data.actionCount} actions
-      </div>
-
-      {/* Output handle */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!bg-green-500 !w-3 !h-3"
-      />
-    </div>
+    <Handle
+      type={type}
+      id={id}
+      position={position}
+      style={{
+        width: 9,
+        height: 9,
+        background: color,
+        border: '2px solid var(--color-background)',
+        ...edge,
+      }}
+    />
   );
 }
 ```
 
-### Envelope Node
+Node colors come from the token vars, resolved from an accent name. The shell
+receives the lucide component as a prop and renames it to a capitalized local so
+JSX treats it as a component, not an intrinsic element:
 
 ```tsx
-// src/components/flow/nodes/EnvelopeNode.tsx
-import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Badge } from '@/components/ui/badge';
+// inside StepNodeShell({ icon: Icon, accent, ... }: { icon: LucideIcon; accent: Accent; ... })
+type Accent = 'primary' | 'secondary' | 'tertiary' | 'font';
+const color = `var(--color-${accent})`;
 
-interface EnvelopeNodeData {
-  id: string;
-  action: string;
-  status: 'pending' | 'resolved' | 'rejected';
-  hasCallback: boolean;
-}
-
-const statusColors = {
-  pending: 'border-amber-500/50 bg-amber-500/10',
-  resolved: 'border-green-500/50 bg-green-500/10',
-  rejected: 'border-red-500/50 bg-red-500/10',
-};
-
-export function EnvelopeNode({ data }: NodeProps<EnvelopeNodeData>) {
-  return (
-    <div className={`px-4 py-3 border rounded-lg min-w-[180px] ${statusColors[data.status]}`}>
-      {/* Input handle */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!bg-blue-500 !w-3 !h-3"
-      />
-
-      {/* Content */}
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-slate-400">envelope</span>
-        <span className="font-mono text-blue-400 text-xs">{data.id}</span>
-      </div>
-
-      <div className="font-mono text-sm text-green-400">
-        {data.action}
-      </div>
-
-      <Badge
-        variant="outline"
-        className={`mt-2 ${
-          data.status === 'resolved' ? 'text-green-400' :
-          data.status === 'pending' ? 'text-amber-400' : 'text-red-400'
-        }`}
-      >
-        {data.status}
-      </Badge>
-
-      {/* Output handle (only if has callback) */}
-      {data.hasCallback && (
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="!bg-green-500 !w-3 !h-3"
-        />
-      )}
-    </div>
-  );
-}
+<article
+  className="bg-background border rounded-2xl w-[200px] flex flex-col relative"
+  style={{ borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-card)' }}
+>
+  <span style={{ background: `color-mix(in oklab, ${color} 18%, transparent)`, color }}>
+    <Icon size={15} strokeWidth={1.75} />
+  </span>
+</article>
 ```
 
-## Converting Runtime to Flow
+Never write a hex or a Tailwind palette class inside a node. `PathGraph.tsx`
+still carries four hex literals (lines 27–29, 55) — it predates the design hook
+and is a known offender, not a pattern to copy.
 
-```tsx
-// src/components/flow/utils/runtimeToFlow.ts
-import type { Node, Edge } from '@xyflow/react';
-import type { Runtime } from '@/engine/Runtime';
-import type { Envelope, Agent } from '@/engine/types';
+## Building the graph from substrate data
 
-interface FlowData {
-  nodes: Node[];
-  edges: Edge[];
+Graph data is derived in a **pure module** with no React and no xyflow runtime
+import, so it is unit-testable. `components/paths/path-flow.ts` is the reference:
+
+```ts
+import type { Edge, Node } from '@xyflow/react';
+
+export interface PathRow {
+  from: string;
+  to: string;
+  fromName?: string;
+  toName?: string;
+  strength: number;
+  resistance: number;
+  traversals: number;
 }
 
-export function runtimeToFlow(runtime: Runtime): FlowData {
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
+export function toFlow(paths: PathRow[]): { nodes: Node[]; edges: Edge[] } {
+  const actors = [...new Set(paths.flatMap(p => [p.from, p.to]))];
 
-  const agents = Array.from(runtime.router.agents.values());
-  const allEnvelopes = agents.flatMap(a => a.envelopes);
+  const nodes: Node[] = actors.map((id, i) => ({
+    id,
+    type: 'role',
+    position: { x: (i % 4) * 260, y: Math.floor(i / 4) * 200 },
+    data: { name: id },
+  }));
 
-  // Position agents in a row at the top
-  agents.forEach((agent, index) => {
-    nodes.push({
-      id: agent.id,
-      type: 'agent',
-      position: { x: index * 250, y: 0 },
-      data: {
-        name: agent.name,
-        status: agent.status,
-        actionCount: Object.keys(agent.actions).length,
-      },
-    });
-  });
-
-  // Position envelopes below their target agents
-  allEnvelopes.forEach((envelope, index) => {
-    const targetAgent = agents.find(a => a.id === envelope.metadata?.receiver);
-    const agentIndex = targetAgent ? agents.indexOf(targetAgent) : 0;
-
-    nodes.push({
-      id: envelope.id,
-      type: 'envelope',
-      position: {
-        x: agentIndex * 250 + 50,
-        y: 150 + (index % 3) * 120,
-      },
-      data: {
-        id: envelope.id.slice(-6),
-        action: envelope.env.action,
-        status: envelope.payload.status,
-        hasCallback: !!envelope.callback,
-      },
-    });
-
-    // Edge from sender to envelope
-    if (envelope.metadata?.sender) {
-      edges.push({
-        id: `${envelope.metadata.sender}-${envelope.id}`,
-        source: envelope.metadata.sender,
-        target: envelope.id,
-        animated: envelope.payload.status === 'pending',
-        style: { stroke: '#3b82f6' },
-      });
-    }
-
-    // Edge from envelope to receiver
-    if (envelope.metadata?.receiver) {
-      edges.push({
-        id: `${envelope.id}-${envelope.metadata.receiver}`,
-        source: envelope.id,
-        target: envelope.metadata.receiver,
-        animated: envelope.payload.status === 'pending',
-        style: { stroke: '#22c55e' },
-      });
-    }
-
-    // Edge to callback envelope
-    if (envelope.callback) {
-      edges.push({
-        id: `${envelope.id}-callback`,
-        source: envelope.id,
-        target: envelope.callback.id,
-        animated: true,
-        style: { stroke: '#eab308', strokeDasharray: '5,5' },
-        label: 'callback',
-        labelStyle: { fill: '#eab308', fontSize: 10 },
-      });
-    }
-  });
+  const edges: Edge[] = paths.map(p => ({
+    id: `${p.from}-${p.to}`,
+    source: p.from,
+    target: p.to,
+    type: 'path',
+    animated: p.traversals > 0,
+    data: { strength: p.strength, resistance: p.resistance, traversals: p.traversals },
+  }));
 
   return { nodes, edges };
 }
 ```
 
-## Interactive Flow Canvas
+Edge weight maps to stroke width and token color — the visual encoding of
+`strength` vs `resistance`, straight from `components/org/SignalEdge.tsx`:
 
 ```tsx
-// src/components/flow/InteractiveFlowCanvas.tsx
-import { useCallback, useEffect } from 'react';
+function strokeWidth(strength: number): number {
+  return Math.max(1, Math.min(8, Math.log2(strength + 1) * 2));
+}
+
+function strokeColor(data: SignalEdgeData): string {
+  if (data.isHighway) return 'var(--color-tertiary)';
+  if (data.resistance > data.strength) return 'var(--color-secondary)';
+  return 'var(--color-primary)';
+}
+```
+
+## Interactive Flow Canvas
+
+An editable canvas adds `onConnect`, a click handler, and gating props. Note the
+handler signature: `onNodeClick` receives `(event, node)` and `node` must be
+imported as a type — omitting the import is the most common tsc failure here.
+
+```tsx
+import { useCallback } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
+  Panel,
+  addEdge,
   useNodesState,
   useEdgesState,
-  addEdge,
   type Connection,
+  type Node,
+  type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-
+import { emitClick } from '@/lib/ui-signal';
+import { TriggerNode } from './nodes/TriggerNode';
 import { AgentNode } from './nodes/AgentNode';
-import { EnvelopeNode } from './nodes/EnvelopeNode';
-import { runtimeToFlow } from './utils/runtimeToFlow';
-import type { Runtime } from '@/engine/Runtime';
+import { PathEdge } from './PathEdge';
 
-const nodeTypes = {
-  agent: AgentNode,
-  envelope: EnvelopeNode,
-};
+const NODE_TYPES = { trigger: TriggerNode, agent: AgentNode };
+const EDGE_TYPES = { path: PathEdge };
 
 interface Props {
-  runtime: Runtime;
-  onEnvelopeClick?: (envelopeId: string) => void;
+  initialNodes: Node[];
+  initialEdges: Edge[];
+  editable?: boolean;
+  onNodeOpen?: (id: string) => void;
 }
 
-export function InteractiveFlowCanvas({ runtime, onEnvelopeClick }: Props) {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+export function InteractiveFlowCanvas({
+  initialNodes,
+  initialEdges,
+  editable = false,
+  onNodeOpen,
+}: Props) {
+  const [nodes, , onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Update flow when runtime changes
-  useEffect(() => {
-    const { nodes: newNodes, edges: newEdges } = runtimeToFlow(runtime);
-    setNodes(newNodes);
-    setEdges(newEdges);
-  }, [runtime, setNodes, setEdges]);
-
-  // Handle new connections
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => addEdge({
-        ...connection,
-        animated: true,
-        style: { stroke: '#3b82f6' },
-      }, eds));
+      setEdges(eds => addEdge({ ...connection, animated: true }, eds));
     },
     [setEdges]
   );
 
-  // Handle node clicks
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
-      if (node.type === 'envelope' && onEnvelopeClick) {
-        onEnvelopeClick(node.id);
-      }
+      emitClick('ui:graph:open', { id: node.id });
+      onNodeOpen?.(node.id);
     },
-    [onEnvelopeClick]
+    [onNodeOpen]
   );
 
   return (
@@ -372,241 +355,233 @@ export function InteractiveFlowCanvas({ runtime, onEnvelopeClick }: Props) {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
-        nodeTypes={nodeTypes}
+        nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
+        nodesDraggable={editable}
+        nodesConnectable={editable}
+        edgesReconnectable={false}
+        deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
-        className="bg-[#0a0a0f]"
+        panOnScroll
+        proOptions={{ hideAttribution: true }}
       >
-        <Background
-          color="#1e293b"
-          gap={20}
-          size={1}
-        />
-        <Controls
-          showZoom
-          showFitView
-          showInteractive
-          className="!bg-[#0f0f14] !border-[#1e293b] !shadow-lg"
-        />
-        <MiniMap
-          nodeColor={(node) => {
-            if (node.type === 'agent') return '#3b82f6';
-            if (node.data?.status === 'resolved') return '#22c55e';
-            if (node.data?.status === 'pending') return '#eab308';
-            return '#64748b';
-          }}
-          className="!bg-[#0f0f14] !border-[#1e293b]"
-          maskColor="rgba(10, 10, 15, 0.8)"
-        />
+        <Background bgColor="var(--sidebar)" />
+        <MiniMap pannable zoomable />
+        <Controls showInteractive={false} />
+        {editable && <Panel position="top-left">{/* toolbar */}</Panel>}
       </ReactFlow>
     </div>
   );
 }
 ```
 
+`deleteKeyCode={null}` is how a read-only canvas blocks node deletion — there is
+no `deletable` prop on `<ReactFlow>`.
+
 ## Custom Edges
 
+`LifecycleFlow.tsx` picks its path function from edge data and animates a dot
+along it with SVG `animateMotion`:
+
 ```tsx
-// src/components/flow/edges/CallbackEdge.tsx
 import {
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
+  getStraightPath,
   type EdgeProps,
 } from '@xyflow/react';
 
-export function CallbackEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  style = {},
-  markerEnd,
+interface EdgeData extends Record<string, unknown> {
+  kind: 'forward' | 'loop';
+  flow?: boolean;
+  showLabel?: boolean;
+  label?: string;
+}
+
+function LifecycleEdge({
+  sourceX, sourceY, targetX, targetY,
+  sourcePosition, targetPosition, markerEnd, style, data,
 }: EdgeProps) {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
+  const d = data as EdgeData | undefined;
+  const [path, labelX, labelY] =
+    d?.kind === 'forward'
+      ? getStraightPath({ sourceX, sourceY, targetX, targetY })
+      : getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
 
   return (
     <>
-      <BaseEdge
-        path={edgePath}
-        markerEnd={markerEnd}
-        style={{
-          ...style,
-          stroke: '#eab308',
-          strokeWidth: 2,
-          strokeDasharray: '5,5',
-        }}
-      />
-      <EdgeLabelRenderer>
-        <div
-          style={{
-            position: 'absolute',
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-            pointerEvents: 'all',
-          }}
-          className="px-2 py-1 bg-[#0f0f14] border border-[#1e293b] rounded text-xs text-amber-400"
-        >
-          callback
-        </div>
-      </EdgeLabelRenderer>
+      <BaseEdge path={path} markerEnd={markerEnd} style={style} />
+      {d?.flow && (
+        <circle r={3.5} fill="var(--color-primary)">
+          <animateMotion dur="2.4s" repeatCount="indefinite" path={path} />
+        </circle>
+      )}
+      {d?.showLabel && d?.label && (
+        <EdgeLabelRenderer>
+          <div
+            className="pointer-events-none px-2 py-0.5 rounded-full text-xs font-semibold bg-background border text-font/80 whitespace-nowrap"
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%,-50%) translate(${labelX}px,${labelY}px)`,
+              borderColor: 'var(--color-border)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            {d.label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 }
 ```
 
+`getBezierPath` needs `sourcePosition` and `targetPosition`; `getStraightPath`
+takes only the four coordinates. Passing the extra keys to `getStraightPath` is
+harmless but passing too few to `getBezierPath` yields a degenerate path.
+
 ## Edge Types Registration
 
 ```tsx
-import { CallbackEdge } from './edges/CallbackEdge';
+import { LifecycleEdge } from './LifecycleEdge';
 
-const edgeTypes = {
-  callback: CallbackEdge,
-};
+const EDGE_TYPES = { lifecycle: LifecycleEdge };
 
-// In ReactFlow component
-<ReactFlow
-  edgeTypes={edgeTypes}
-  // ...
-/>
+<ReactFlow edgeTypes={EDGE_TYPES} /* ... */ />
 ```
+
+Module scope, same as `NODE_TYPES`. An edge opts in via `type: 'lifecycle'` in
+its `Edge` object.
 
 ## Auto-Layout with dagre
 
-```bash
-bun add @dagrejs/dagre
-```
+`components/data/TypesCanvas.tsx` is the only dagre consumer. It falls back to a
+grid when there are no edges — dagre on a disconnected graph stacks everything at
+the origin:
 
-```tsx
-// src/components/flow/utils/autoLayout.ts
+```ts
 import dagre from '@dagrejs/dagre';
 import type { Node, Edge } from '@xyflow/react';
 
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
+const NODE_WIDTH = 240;
+const NODE_HEIGHT = 160;
 
-const nodeWidth = 180;
-const nodeHeight = 100;
-
-export function getLayoutedElements(
-  nodes: Node[],
-  edges: Edge[],
-  direction: 'TB' | 'LR' = 'LR'
-) {
-  dagreGraph.setGraph({ rankdir: direction });
-
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+function dagreLayout(nodes: Node[], edges: Edge[]): Node[] {
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: 'LR', ranksep: 120, nodesep: 60 });
+  for (const node of nodes) g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  for (const edge of edges) g.setEdge(edge.source, edge.target);
+  dagre.layout(g);
+  return nodes.map(node => {
+    const { x, y } = g.node(node.id);
+    return { ...node, position: { x: x - NODE_WIDTH / 2, y: y - NODE_HEIGHT / 2 } };
   });
-
-  edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
-  });
-
-  dagre.layout(dagreGraph);
-
-  const layoutedNodes = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
-    return {
-      ...node,
-      position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - nodeHeight / 2,
-      },
-    };
-  });
-
-  return { nodes: layoutedNodes, edges };
 }
+
+const GRID_COLS = 3;
+
+function gridLayout(nodes: Node[]): Node[] {
+  return nodes.map((node, i) => ({
+    ...node,
+    position: { x: (i % GRID_COLS) * 300 + 32, y: Math.floor(i / GRID_COLS) * 220 + 32 },
+  }));
+}
+
+export function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
+  return edges.length === 0 ? gridLayout(nodes) : dagreLayout(nodes, edges);
+}
+```
+
+Build the graph fresh per call — a module-level `dagre.graphlib.Graph()` reused
+across renders accumulates stale nodes.
+
+For a known hierarchy, skip dagre. `OrgChartView` and `SignalGraph` place tiers
+on fixed rows:
+
+```ts
+const ROW_Y: Record<Tier, number> = {
+  chairman: 0, ceo: 260, director: 560, specialist: 880,
+};
 ```
 
 ## Astro Page with ReactFlow
 
+Always `client:only="react"` — the canvas measures the DOM and cannot SSR.
+`client:load` renders an empty container on the server and flashes.
+
 ```astro
 ---
-// src/pages/visualise.astro
+// src/pages/org/index.astro
+export const prerender = false;
 import Layout from "@/layouts/Layout.astro";
-import { InteractiveFlowCanvas } from "@/components/flow/InteractiveFlowCanvas";
+import { OrgChartView } from "@/components/org/OrgChartView";
 ---
 
-<Layout title="Envelope Flow Visualization">
+<Layout title="Org chart">
   <div class="h-screen">
-    <InteractiveFlowCanvas client:load />
+    <OrgChartView chart="complete" client:only="react" />
   </div>
 </Layout>
-
-<style>
-  /* ReactFlow dark theme overrides */
-  :global(.react-flow__node) {
-    font-family: ui-monospace, monospace;
-  }
-
-  :global(.react-flow__controls button) {
-    background-color: #0f0f14 !important;
-    border-color: #1e293b !important;
-    color: white !important;
-  }
-
-  :global(.react-flow__controls button:hover) {
-    background-color: #1e293b !important;
-  }
-</style>
 ```
+
+The parent must have a resolved height. ReactFlow measures its container; inside
+a `h-auto` wrapper it collapses to zero and renders nothing.
 
 ## Real-time Updates
 
+Do not poll and do not hand-roll an event emitter. A resolver mutation anywhere —
+UI, chat, MCP, CLI — broadcasts one SSE frame that every mounted surface on that
+dimension receives:
+
 ```tsx
-// Update flow when runtime emits events
-import { useEffect } from 'react';
+import { useCallback } from 'react';
+import { useNodesState, useEdgesState, ReactFlow, type Node, type Edge } from '@xyflow/react';
+import { useSurfaceRefresh } from '@/lib/use-surface-refresh';
+import { buildGraph, type WorkflowDef } from './build-graph';
 
-export function useRuntimeSync(
-  runtime: Runtime,
-  setNodes: (nodes: Node[]) => void,
-  setEdges: (edges: Edge[]) => void
-) {
-  useEffect(() => {
-    const updateFlow = () => {
-      const { nodes, edges } = runtimeToFlow(runtime);
-      setNodes(nodes);
-      setEdges(edges);
-    };
+export function WorkflowCanvas({ slug, workflowId }: { slug: string; workflowId: string }) {
+  const [nodes, setNodes] = useNodesState<Node>([]);
+  const [edges, setEdges] = useEdgesState<Edge>([]);
 
-    // Initial render
-    updateFlow();
+  const reload = useCallback(() => {
+    fetch(`/api/workflows/${workflowId}?slug=${slug}`)
+      .then(r => r.json() as Promise<{ data?: WorkflowDef }>)
+      .then(d => {
+        if (!d.data) return;
+        const g = buildGraph(d.data);
+        setNodes(g.nodes);
+        setEdges(g.edges);
+      })
+      .catch(() => {});
+  }, [slug, workflowId, setNodes, setEdges]);
 
-    // Subscribe to runtime events
-    runtime.on('envelope:sent', updateFlow);
-    runtime.on('envelope:resolved', updateFlow);
-    runtime.on('agent:statusChange', updateFlow);
+  useSurfaceRefresh(slug, 'workflows', reload);
 
-    return () => {
-      runtime.off('envelope:sent', updateFlow);
-      runtime.off('envelope:resolved', updateFlow);
-      runtime.off('agent:statusChange', updateFlow);
-    };
-  }, [runtime, setNodes, setEdges]);
+  return <ReactFlow nodes={nodes} edges={edges} /* ... */ />;
 }
 ```
 
 ## Best Practices
 
-1. **Memoize custom nodes**: Use `React.memo` to prevent re-renders
-2. **Use fitView**: Auto-fit the view after layout changes
-3. **Animate pending edges**: Show activity with `animated` prop
-4. **Dark theme CSS**: Override ReactFlow default styles
-5. **Custom handles**: Style handles to match your theme
-6. **Auto-layout**: Use dagre for complex graphs
+1. **Registries at module scope**: `NODE_TYPES` / `EDGE_TYPES` defined in the
+   component body remount every node on every render.
+2. **`Omit<NodeProps,'data'> & { data: T }`**: the v12 pattern. `NodeProps<T>`
+   does not compile with a bare data interface.
+3. **Index-signature your data types**: `[key: string]: unknown`, or the type is
+   rejected at `Node['data']`.
+4. **Tokens inside the canvas too**: `var(--color-primary)`, `color-mix(...)`,
+   `var(--color-border)`. Never a hex, never a palette class.
+5. **`client:only="react"`, sized parent**: the canvas cannot SSR and collapses
+   without a resolved height.
+6. **Derive the graph in a pure module**: no React, no xyflow runtime import — so
+   it can be unit-tested.
+7. **Default undefined edge `data`**: a newly-connected edge has none.
+8. **`emitClick` before the handler**: node and edge clicks are signals.
+9. **`proOptions={{ hideAttribution: true }}`**: on every canvas in the repo.
 
 ---
 
-**Version**: 1.0.0
-**Tech**: @xyflow/react 12+
+**Tech**: @xyflow/react 12.10.2 · @dagrejs/dagre 3.0 · React 19.2.6 · Astro 6.3.7
+**Tree**: `one.ie/web` — 25 importing files under `src/components/`

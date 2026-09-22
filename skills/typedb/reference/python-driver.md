@@ -1,6 +1,22 @@
 # TypeDB Python Driver Reference
 
-> Complete Python driver patterns for TypeDB 3.x
+> Complete Python driver patterns for TypeDB 3.x.
+>
+> **Nothing in this monorepo uses the Python driver.** There is no
+> `typedb-driver` dependency in any `package.json`, `requirements.txt` or
+> `pyproject.toml`. Both real access paths speak the **`/v1/` HTTP API**:
+> `one.ie/web/src/lib/substrate.ts` → `api/src/index.ts` (TypeScript), and
+> `backup/scripts/typedb/{dump,replay}.py` (Python via `urllib`). Load this file
+> when reading upstream TypeDB documentation or evaluating the driver — not as a
+> model for new code here.
+>
+> Server is **3.12.1** (prod and local, since 2026-07-29). The driver API
+> surface below is transcribed from upstream docs and has **not** been
+> exercised against 3.12.1 from this repo. Where it disagrees with
+> `SKILL.md`'s VERIFIED table, the VERIFIED table wins — it was probed live.
+>
+> Ports: this repo's prod endpoint is `:1729`, local is `:8000`. Ignore the
+> `:80` in upstream connection snippets.
 
 ---
 

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "oneie": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@oneie/mcp"
+      ],
+      "env": {
+        "ONEIE_API_KEY": "${ONEIE_API_KEY}",
+        "ONEIE_API_URL": "${ONEIE_API_URL}"
+      }
+    }
+  }
+}

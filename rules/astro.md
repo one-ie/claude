@@ -92,7 +92,7 @@ import Layout from "../../../layouts/Layout.astro"
 
 <!-- Global (sparingly) -->
 <style is:global>
-  .colony-graph { ... }
+  .world-graph { ... }
 </style>
 
 <!-- Tailwind (preferred) -->
@@ -106,16 +106,16 @@ import Layout from "../../../layouts/Layout.astro"
 ```astro
 ---
 import Layout from "@/layouts/Layout.astro"
-import { ColonyEditor } from "@/components/graph/ColonyEditor"
+import { WorldEditor } from "@/components/graph/WorldEditor"
 ---
 
-<Layout title="Colony">
-  <ColonyEditor client:load />
+<Layout title="World">
+  <WorldEditor client:load />
 </Layout>
 ```
 
 - `client:load` — interactive graph needs JS
-- Colony state lives in React component
+- World state lives in React component
 - Astro handles routing, layout, SSR shell
 
 ---

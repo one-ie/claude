@@ -1,6 +1,13 @@
 """
-TypeDB 3.x Python Driver Patterns
-Complete examples for TypeDB Python SDK
+TypeDB Python Driver Patterns — upstream reference only.
+
+NOTHING IN THIS MONOREPO USES THE PYTHON DRIVER. There is no `typedb-driver`
+dependency anywhere. The real Python path is `backup/scripts/typedb/dump.py`
+and `replay.py`, which speak the `/v1/` HTTP API through `urllib`, and the
+TypeScript path is `one.ie/web/src/lib/substrate.ts` -> `api/src/index.ts`.
+Keep this file for reading upstream docs; do not model new code on it.
+
+Server: TypeDB 3.12.1 (prod and local, since 2026-07-29).
 """
 
 import os
@@ -34,7 +41,7 @@ def connect_cloud():
     credentials = Credentials("admin", os.environ["TYPEDB_PASSWORD"])
     options = DriverOptions(is_tls_enabled=True)
     return TypeDB.driver(
-        "https://cluster.cloud.typedb.com:80",
+        "https://flsiu1-0.cluster.typedb.com:1729",  # port 1729, never :80
         credentials,
         options
     )
@@ -581,7 +588,7 @@ def main():
     options = DriverOptions(is_tls_enabled=True)
 
     with TypeDB.driver(
-        "https://cluster.cloud.typedb.com:80",
+        "https://flsiu1-0.cluster.typedb.com:1729",  # port 1729, never :80
         credentials,
         options
     ) as driver:

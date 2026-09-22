@@ -1,23 +1,32 @@
 ---
 name: astro
-description: Build Astro 6 pages with React 19 islands + Cloudflare Workers runtime. Covers adapter v13, SSR vs prerender, cloudflare:workers env, bundle-size rules.
+description: Build pages, layouts and API routes in `one.ie/web` — Astro 6 + React 19 islands on Cloudflare Workers. Covers the real astro.config.mjs shape, adapter v13, SSR vs prerender, the `(await import('cloudflare:workers')).env` access pattern, and the LOCKED bundle-size rules. Use when editing `.astro` files, `astro.config.mjs`, or `src/pages/api/**`. For the `template/` tree use `template:astro` (Astro 7) instead.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-# Astro 6 on Cloudflare Workers
+# Astro 6 on Cloudflare Workers — `one.ie/web`
 
-Server-rendered pages with strategic React islands, running on `@astrojs/cloudflare@13` + Workers with Static Assets (Pages-era is retired — see `docs/cf-workers-migration-todo.md`).
+**Which tree:** this skill describes `one.ie/web` only — Astro 6, single Cloudflare
+adapter. `template/site` is a **different major** (Astro 7) with its own conventions;
+use the `template:astro` skill there. Every claim below was checked against
+`one.ie/web/astro.config.mjs` and `one.ie/web/package.json` on 2026-08-02.
+
+Server-rendered pages with strategic React islands, on `@astrojs/cloudflare@13` +
+Workers with Static Assets (the Pages era is retired).
 
 ## Stack
 
-| Package | Version (2026-04-18) | Role |
+| Package | Declared (2026-08-02) | Role |
 |---|---|---|
-| `astro` | `^6.1.7` | Framework |
-| `@astrojs/cloudflare` | `^13.1.10` | Workers adapter (no longer supports Pages) |
-| `@astrojs/react` | `^5.0.3` | React 19 islands |
-| `@astrojs/node` | `^10.0.5` | **Dev-only** (standalone mode, avoids miniflare dev issues) |
-| `wrangler` | `^4.83.0` | Workers CLI |
+| `astro` | `^6.2.2` (6.3.7 installed) | Framework |
+| `@astrojs/cloudflare` | `^13.3.1` | Workers adapter (no longer supports Pages) |
+| `@astrojs/react` | `^5.0.4` | React 19 islands |
+| `@astrojs/node` | `^10.0.6` | Declared but **unused** — not imported by `astro.config.mjs` |
+| `wrangler` | `^4.14.0` | Workers CLI |
+
+`@astrojs/node` is a leftover dependency. There is no dev/prod adapter swap in this
+tree — don't add one back on the strength of the package being present.
 
 ## Works With
 
@@ -25,54 +34,51 @@ Server-rendered pages with strategic React islands, running on `@astrojs/cloudfl
 |------------|---------------------------------------------------------------------------------------|
 | `/react19` | React components inside islands — pick `client:load` / `client:visible` / `client:only`. |
 | `/cloudflare` | `wrangler.toml`, `[assets]` binding, secrets, `wrangler tail`, Workers+Assets semantics. |
-| `/deploy`  | 8-step `bun run deploy` pipeline — Astro build is step 3; bundle-size rules live here. |
 | `/signal`  | `src/pages/api/*.ts` — every API route is the substrate's HTTP surface.                |
 | `/shadcn`  | shadcn components live inside islands; dark-theme tokens + hydration strategy.         |
-| `/sui`     | SSR pages reading on-chain data — use `client:only="react"` to keep worker under 10 MiB. |
-| `/typedb`  | SSR data fetching — Astro pages call `readParsed()` from `src/lib/typedb.ts`.          |
+| `/sui`     | SSR pages reading on-chain data — use `client:only="react"` to keep the worker small.  |
+| `/typedb`  | SSR data fetching — pages call `typedbQuery()` from `src/lib/substrate.ts`.            |
 
-Auto-loads on `*.astro`: `.claude/rules/astro.md`.
+Auto-loads on `*.astro`: `.claude/rules/astro.md`. The deploy pipeline (8 steps,
+Astro build is step 3) is the `/deploy` **command**, not a skill:
+`.claude/commands/deploy.md`.
 
-## Dual-Adapter Config (the ONE pattern)
+## The Config (the ONE shape)
 
-`astro.config.mjs` swaps adapters at NODE_ENV time. Node standalone for dev (fast reload, no miniflare flakes), Cloudflare Workers for prod.
+One adapter, always Cloudflare. `astro.config.mjs` is ~200 lines — three Vite plugins,
+a large `optimizeDeps` block, and a Durable-Object export plugin. **Read the file for
+the rest; the load-bearing shape is:**
 
 ```js
-// astro.config.mjs — the working shape
-import react from "@astrojs/react";
-import cloudflare from "@astrojs/cloudflare";
-import node from "@astrojs/node";
-import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "astro/config";
-
-const isDev = process.env.NODE_ENV !== "production";
-const adapter = isDev
-  ? node({ mode: "standalone" })
-  : cloudflare({ platformProxy: { enabled: true } });
-
+// astro.config.mjs — the parts this skill's rules depend on
 export default defineConfig({
-  site: "https://one.ie",
-  integrations: [react()],
-  output: "server",        // all routes SSR unless prerender=true per-page
-  adapter,
-  markdown: {
-    syntaxHighlight: false,  // LOCKED — saves ~5.8 MiB of Shiki from worker
-  },
-  vite: {
-    ssr: {
-      noExternal: ["recharts", "lucide-react"],
-      external: [
-        "node:async_hooks",
-        "@mysten/sui", "@mysten/bcs",
-        "shiki", "@shikijs/core", "@shikijs/types",
-      ],
-    },
-    // ...tailwind, aliases, chunks
-  },
-});
+  output: 'server',                    // all routes SSR unless prerender=true
+  adapter: cloudflare({
+    prerenderEnvironment: 'node',      // prerender under node, not workerd
+    imageService: 'passthrough',
+    sessions: false,
+    remoteBindings: false,
+    // NOT { enabled: true } — loading [env.production] during build sync
+    // makes Miniflare evaluate the DO before the export plugin runs
+    platformProxy: { environment: undefined },
+  }),
+  integrations: [react(), devWarmupIntegration()],
+  build: { inlineStylesheets: 'auto' },   // LOCKED — never 'always'
+  markdown: { syntaxHighlight: false },   // LOCKED — keeps Shiki out of the worker
+  security: { checkOrigin: false },
+  vite: { /* ssr.external, ssr.noExternal, optimizeDeps, plugins — see the file */ },
+})
 ```
 
-**Why `platformProxy: { enabled: true }`**: proxies CF bindings (KV, D1, R2, secrets) into dev via `wrangler.toml`, so SSR code can read them with the same `env` shape as production. Leave it on.
+**Don't copy a `vite.ssr` list out of this skill.** `astro.config.mjs` §
+`vite.ssr.external` is the authority (`.claude/skills/deploy/REFERENCE.md` Rule 2 says so
+explicitly: *never reconcile that file to a doc*). Note the direction — `recharts`,
+Stripe, `@xyflow/react`, `motion`, `media-chrome` and the 100ms packages are
+**external**; `react`, `react-dom`, `@astrojs/react`, `better-auth` and `kysely` are
+**noExternal**. Getting that backwards breaks the build.
+
+A companion `ssrExternalPlugin()` also swaps three packages for tiny SSR stubs
+(`pusher-js`, `media-chrome/react`, `@mux/mux-player-react` → `src/lib/stubs/`).
 
 ## Adapter v13 — What Changed from Astro 5/v12
 
@@ -80,14 +86,16 @@ export default defineConfig({
 |---|---|---|---|
 | Pages support | ✓ | **removed** | Deploy target is Workers + Static Assets only |
 | `output: "hybrid"` | ✓ | **removed** | Use `"server"` + `prerender = true` per-page, or `"static"` + `prerender = false` |
-| `Astro.locals.runtime` | populated | **removed** | `import { env } from "cloudflare:workers"` |
-| `prerenderEnvironment` | n/a | `workerd` default | Set to `"node"` only if prerender breaks under workerd |
-| `imageService` default | `"compile"` | `"cloudflare-binding"` | Needs `imagesBindingName` (default `"IMAGES"`) |
-| `sessionKVBindingName` | n/a | default `"SESSION"` | Astro session driver reads this binding |
-| `workerEntryPoint` | option | **removed** | Adapter emits `dist/_worker.js/index.js` |
+| `Astro.locals.runtime` | populated | **removed** | Use `cloudflare:workers` (see below) |
+| `prerenderEnvironment` | n/a | `workerd` default | ONE sets `'node'` — prerender breaks under workerd here |
+| `imageService` default | `"compile"` | `"cloudflare-binding"` | ONE overrides to `'passthrough'` — no IMAGES binding needed |
+| `sessionKVBindingName` | n/a | default `"SESSION"` | ONE sets `sessions: false`; the `SESSION` KV is used directly |
+| `workerEntryPoint` | option | **removed** | Adapter emits the bundled entry; `dist/server/wrangler.json` injects it |
 | `cloudflareModules` | option | **removed** | Use Vite's built-in WASM/text imports |
 
-**Migration memory (save in `.claude/memory/`):** check adapter + deploy-target compatibility BEFORE bumping Astro major. Astro 6's `@astrojs/cloudflare@13` dropped Pages in a single minor jump; ~8-commit cascade to fix.
+**Migration memory:** check adapter + deploy-target compatibility BEFORE bumping
+Astro major. Astro 6's `@astrojs/cloudflare@13` dropped Pages in a single minor jump;
+~8-commit cascade to fix.
 
 ## Output Modes (Astro 6)
 
@@ -103,39 +111,47 @@ export const prerender = false  // force SSR  — runs in worker
 | `"server"` | SSR | ONE's choice — most routes are dynamic; static pages opt in |
 | `"hybrid"` | — | **removed** in Astro 6; use `"server"` + per-page `prerender = true` |
 
-**ONE's rule:** `output: "server"`. Static shell pages export `prerender = true` AND load heavy islands with `client:only="react"`. That collapses the page handler to a ~63-byte stub — the worker doesn't ship React for pre-rendered pages.
+**ONE's rule:** `output: "server"`. Static shell pages export `prerender = true` AND
+load heavy islands with `client:only="react"`, so the worker ships no React for them.
+Current split in `src/pages`: 53 files `prerender = true`, 601 `prerender = false`.
 
 ## cloudflare:workers — The Canonical Env Import
 
+**Always the dynamic form.** A top-level `import { env } from "cloudflare:workers"`
+is not used anywhere in this tree (0 files under `src/`); the dynamic import is (407 files). The
+static import resolves at module-eval time, which breaks prerender and any non-worker
+context that touches the module.
+
 ```ts
 // src/pages/api/whatever.ts (SSR API route)
-import { env } from "cloudflare:workers";
+import type { APIRoute } from "astro";
 
-export const GET: APIRoute = async ({ request }) => {
-  const paths = await env.KV.get("paths.json", "json");
+type Env = { DB?: D1Database; SESSION?: KVNamespace }
+
+async function getEnv(): Promise<Env> {
+  return (await import('cloudflare:workers' as string)).env as Env
+}
+
+export const GET: APIRoute = async () => {
+  const env = await getEnv()
+  if (!env.DB) return Response.json({ error: 'no_db' }, { status: 503 })
   const { results } = await env.DB.prepare("SELECT * FROM signals LIMIT 10").all();
-  return Response.json({ paths, signals: results });
+  return Response.json({ signals: results });
 };
 ```
 
-**Typing (wrangler 4):**
-```bash
-bun wrangler types   # emits worker-configuration.d.ts from wrangler.toml bindings
-```
-
-Pipe it into dev/build scripts so `env.KV`, `env.DB` etc. are typed against actual bindings:
-
-```jsonc
-// package.json scripts
-{
-  "dev":   "wrangler types && astro dev",
-  "build": "wrangler types && astro build"
-}
-```
+**Typing.** There is no `worker-configuration.d.ts` in this tree and `wrangler types`
+is not wired into any script. Bindings are typed by hand in `src/env.d.ts` — the
+`Runtime` interface lists every binding (`DB`, `CONTENT`, `SESSION`, `CHAT_CACHE`,
+`ANALYTICS_HUB`, `WORKFLOW_RUN`, …) alongside `App.Locals`. Add a new binding there
+when you add it to `wrangler.toml`. Routes that declare a narrow local `Env` type (as
+above) are the prevailing pattern.
 
 ### Legacy `Astro.locals.runtime.env` (compat shim)
 
-ONE still has code reading `locals?.runtime?.env?.DB` from the Astro 5 era. The Cycle 1 shim (`src/env.d.ts`) keeps this working until we migrate callers. **New code uses `import { env } from "cloudflare:workers"` directly** — it's typed, guaranteed populated on Workers, and survives the shim's removal.
+`src/env.d.ts` still declares `runtime?: Runtime` on `App.Locals`, and 7 files read
+`locals?.runtime?.env?.*` from the Astro 5 era. **New code uses the dynamic
+`cloudflare:workers` import** — it survives the shim's removal.
 
 ## Hydration Directives (unchanged in Astro 6)
 
@@ -147,7 +163,11 @@ client:only="react" → Client-only, skip SSR entirely (heavy deps, keeps worker
 client:media="(min-width: 768px)" → Hydrate on media query match
 ```
 
-**Bundle rule (LOCKED, CLAUDE.md):** heavy components (shiki, @mysten/sui, recharts if not chunked) MUST be `client:only="react"` OR listed in `vite.ssr.external`. Otherwise the SSR worker crosses 10 MiB and deploy fails.
+**Bundle rule (LOCKED):** heavy components (shiki, recharts, Stripe, 100ms, Puck)
+MUST be `client:only="react"` OR listed in `vite.ssr.external`. Both together is the
+common case — `ssr.external` is only safe when the package never executes on the
+server path, and `client:only` is what guarantees that. 216 `client:only="react"`
+uses across pages and components today.
 
 ## Page Patterns
 
@@ -172,9 +192,9 @@ export const prerender = true;
 // src/pages/dashboard.astro
 import Layout from "@/layouts/Layout.astro";
 import Dashboard from "@/components/Dashboard";
-import { env } from "cloudflare:workers";
 
-const paths = await env.KV.get("paths.json", "json") ?? [];
+const { env } = await import('cloudflare:workers' as string);
+const paths = (await env.CHAT_CACHE?.get("paths.json", "json")) ?? [];
 ---
 <Layout title="Dashboard">
   <Dashboard client:load paths={paths} />
@@ -186,65 +206,78 @@ const paths = await env.KV.get("paths.json", "json") ?? [];
 ```ts
 // src/pages/api/signal.ts
 import type { APIRoute } from "astro";
-import { env } from "cloudflare:workers";
+
+export const prerender = false
 
 export const POST: APIRoute = async ({ request }) => {
+  const { env } = await import('cloudflare:workers' as string);
   const signal = await request.json();
-  await env.KV.put(`signal:${Date.now()}`, JSON.stringify(signal));
+  await env.CHAT_CACHE.put(`signal:${Date.now()}`, JSON.stringify(signal));
   return Response.json({ received: true });
 };
 ```
 
 ## Bundle-Size Rules (LOCKED — do not revert)
 
-The Worker upload must stay under **3 MiB gzipped** on the CF free tier (10 MiB paid).
-Wrangler reports both `Total Upload` and `gzip` — only the gzip number counts.
-See `.claude/commands/deploy.md § Bundle Size` for full diagnosis.
+Wrangler reports both `Total Upload` (uncompressed) and `gzip` — only gzip counts.
+The documented ceiling is **3 MiB gzipped** free tier / 10 MiB paid, but this
+account's real ceiling is **unconfirmed**: deploys at 3.22 MiB (2026-07-08) and
+4.43 MiB (2026-07-19) both succeeded. Treat the current number as a floor to watch,
+not a hard gate, and re-run the diagnosis if it keeps climbing.
+`.claude/skills/deploy/REFERENCE.md § Bundle Size Rules` + § Verified Bundle Numbers is the
+authority — reconcile to it, not to this table.
 
 | Rule | Where | Saves |
 |---|---|---|
 | `markdown: { syntaxHighlight: false }` | `astro.config.mjs` | ~5.8 MiB (Shiki grammars/WASM) |
-| `ssr.external: ["shiki", "@mysten/sui", "@mysten/bcs", "node:async_hooks"]` | `astro.config.mjs` | Bare imports — safe only if package never runs server-side (shiki callers are all `client:only`) |
-| `prerender = true` + `client:only="react"` on shell pages | per-page | Handler collapses to ~63-byte stub |
-| `build: { inlineStylesheets: 'auto' }` — **NEVER `'always'`** | `astro.config.mjs` | ~8 MiB at 100+ routes. `'always'` inlines the full Tailwind stylesheet into every route's manifest entry, ballooning worker-entry by N×stylesheet-size. `'auto'` ships one external `<link>` referenced once. |
+| `vite.ssr.external` for heavy packages | `astro.config.mjs` | Bare imports — safe only if the package never runs server-side (shiki's callers are all `client:only`) |
+| `prerender = true` + `client:only="react"` on shell pages | per-page | Page handler collapses to a stub; no React in the worker |
+| `build: { inlineStylesheets: 'auto' }` — **NEVER `'always'`** | `astro.config.mjs` | ~8 MiB at 100+ routes. `'always'` inlines the full Tailwind stylesheet into every route's manifest entry. `'auto'` ships one external `<link>`. |
+| `react-dom/server` → `react-dom/server.edge` alias, production only | `astro.config.mjs` `vite.resolve.alias` | Ships the edge build instead of the Node build |
 
 Verified deltas:
 - 2026-04-15: 21 MiB Pages → 9.5 MiB Worker (Rules 1-3). Pages deploy FAILED → Workers ✓.
-- 2026-05-22: worker-entry 9.5 MiB → 672 KiB (Rule 4). gzip 3.3 MiB → 2.1 MiB. Deploy unblocked on free tier.
+- 2026-05-22: worker-entry 9.5 MiB → 672 KiB (Rule 4). gzip 3.3 MiB → 2.1 MiB.
 
 ## Dev Commands
 
 ```bash
-bun run dev          # localhost:4321, Node standalone (fast HMR, no miniflare)
-bun run build        # astro build → dist/ + dist/_worker.js/index.js
-bun run preview      # wrangler dev against dist/ (production-shape check)
+bun run dev          # localhost:4321 — regenerates playbook meta + promises, then astro dev
+bun run build        # builds @oneie/sdk, astro build, patches dist/server/wrangler.json
+bun run preview      # astro preview (NOT wrangler — see dev:wrangler for production shape)
+bun run dev:wrangler # build + wrangler dev against dist/server/wrangler.json on :8787
+bun run check        # astro check
+bun run typecheck    # tsc --noEmit
+bun run verify       # build SDK + typecheck + vitest — the gate
 
-# Per-env wrangler dev (hits real CF bindings)
-bun wrangler dev --remote    # against production KV/D1 — use with care
-bun wrangler dev --local     # local miniflare + local KV (default)
-
-# Types
-bun wrangler types           # regenerate worker-configuration.d.ts
-astro check                  # tsc on .astro files + tsconfig
+# Bindings against real CF resources
+bun wrangler dev --remote    # production KV/D1 — use with care
 ```
+
+There is no `wrangler types` step. Bindings are hand-typed in `src/env.d.ts`.
 
 ## Dynamic Routes
 
+Real routes in this tree:
+
 ```
 src/pages/
-  agents/[id].astro          → /agents/donal, /agents/amara
-  envelopes/[...path].astro  → catch-all
-  api/memory/[uid].ts        → /api/memory/tony-tiger
+  p/[slug].astro             → /p/my-landing-page
+  studio/[agent].astro       → /studio/donal
+  u/[slug]/[...path].astro   → catch-all under a workspace
+  go/[id].ts                 → a dynamic API-shaped route (.ts, not .astro)
+  tasks/[...view].astro      → catch-all
 ```
 
 ```astro
 ---
-// src/pages/agents/[id].astro
-const { id } = Astro.params;
-if (!id) return new Response(null, { status: 404 });
+// src/pages/studio/[agent].astro
+export const prerender = false
+const { agent } = Astro.params;
+if (!agent) return new Response(null, { status: 404 });
 ---
-<Layout title={`Agent: ${id}`}>
-  <AgentCard client:load agentId={id} />
+<Layout title={`Studio: ${agent}`}>
+  <AgentCard client:load agentId={agent} />
 </Layout>
 ```
 
@@ -256,68 +289,86 @@ if (!id) return new Response(null, { status: 404 });
 | API routes | `src/pages/api/**/*.ts` |
 | Layouts | `src/layouts/*.astro` |
 | React islands | `src/components/**/*.tsx` |
-| Styles | `src/styles/global.css` |
+| Content collections | `src/content.config.ts` + `src/content/` |
 | Astro config | `astro.config.mjs` |
-| Worker config | `wrangler.toml` |
-| Locals types | `src/env.d.ts` |
+| Worker config | `wrangler.toml` (`main` intentionally omitted) |
+| Binding + Locals types | `src/env.d.ts` |
 
-## Performance Budgets (from `docs/speed.md`)
+## Performance Budgets (from `text/speed.md`)
 
-| Metric | Budget |
+| Metric | Measured |
 |---|---|
-| Routing (in-memory) | <0.005ms |
-| Gateway health | <10ms |
-| API route TTFB | <200ms |
-| Full page TTFB | <500ms |
+| Routing decision (in-memory) | <0.005ms (320 tests) |
+| KV read / highway cache (edge) | <10ms |
+| `ask()` round-trip (no LLM) | 50–200ms |
+| Chat TTFB p50 (browser) | ~97ms — gate ≤100ms |
+| Agent first SSE token (end-to-end) | ~500ms |
 
-Static pages served from `[assets]` binding don't count against request quota — pre-render anything that doesn't need SSR.
+Static pages served from the `[assets]` binding don't count against request quota —
+pre-render anything that doesn't need SSR.
 
 ## Common Tasks
 
+Five sub-workflows live beside this file: `create-page.md`, `create-component.md`,
+`add-content-collection.md`, `check-build.md`, `optimize-performance.md`.
+
 ### Add a new page
 
-1. Create `src/pages/<name>.astro` with Layout import
+1. Create `src/pages/<name>.astro` with a Layout import
 2. If mostly static → `export const prerender = true`
-3. If needs CF bindings → `import { env } from "cloudflare:workers"` in frontmatter
-4. React islands: default to `client:visible`; use `client:load` only for above-fold critical UI
+3. If it needs CF bindings → `await import('cloudflare:workers')` in frontmatter
+4. React islands: default to `client:visible`; `client:load` only for above-fold critical UI
 
 ### Add an API route
 
-1. Create `src/pages/api/<name>.ts`
+1. Create `src/pages/api/<name>.ts`, `export const prerender = false`
 2. Export `GET` / `POST` / `PUT` / `DELETE` as `APIRoute`
-3. Read bindings via `import { env } from "cloudflare:workers"`
-4. Return `Response.json(...)` or `new Response(...)`
+3. Read bindings via `(await import('cloudflare:workers')).env`
+4. Authorize before touching workspace data (`authorizeWorkspace` from `@/lib/analytics/authz`)
+5. Return `Response.json(...)` or `new Response(...)`
 
 ### Convert static component to interactive
 
 1. Create `.tsx` in `src/components/`
-2. Import into `.astro` page
+2. Import into the `.astro` page
 3. Pick directive: above-fold → `client:load`, below-fold → `client:visible`, heavy → `client:only="react"`
 
 ### Type a new binding
 
-1. Add binding to `wrangler.toml` (`[[kv_namespaces]]`, `[[d1_databases]]`, etc.)
-2. Run `bun wrangler types` → updates `worker-configuration.d.ts`
-3. `env.NEW_BINDING` is now typed everywhere
+1. Add the binding to `wrangler.toml` (`[[kv_namespaces]]`, `[[d1_databases]]`, etc.)
+2. Add the field to the `Runtime.env` interface in `src/env.d.ts` (by hand — no codegen)
+3. Narrow it in the route's local `Env` type where you read it
 
 ## Gotchas
 
-- **Dev uses Node, prod uses workerd.** Behavior can diverge. Always `bun run preview` before deploy for production-shape smoke.
-- **`import.meta.env.*`** is build-time only. For runtime secrets/bindings use `env` from `cloudflare:workers`.
+- **Dev and prod both run the Cloudflare adapter**, but dev goes through Vite +
+  Miniflare. Behaviour still diverges — `bun run dev:wrangler` for a production-shape smoke.
+- **A top-level `import { env } from "cloudflare:workers"` breaks prerender.** Always
+  the dynamic form. Zero files in this tree use the static one.
+- **`import.meta.env.*`** is build-time only. Runtime secrets/bindings come from `env`.
 - **Shiki will crash your deploy** if imported from SSR. All callers must be `client:only="react"`.
-- **`output: "hybrid"`** throws in Astro 6. If you see it in old docs or snippets, replace with `"server"` + `prerender = true` per page.
-- **`Astro.locals.runtime.env`** is a v12 pattern. ONE has a compat shim but new code must use `cloudflare:workers`.
-- **`wrangler types`** must run before `astro build` or bindings are untyped. Script it in `package.json`.
+- **`output: "hybrid"`** throws in Astro 6. Replace with `"server"` + per-page `prerender = true`.
+- **Never delete a `vite.ssr.external` entry to match a doc snippet** — the config file is
+  the authority and the list is longer than any snippet.
+- **A `{/* … */}` comment in ATTRIBUTE position inside an opening tag is parsed as
+  an expression.** Any backtick in the prose opens a template literal, and
+  `astro check` then reports `Unterminated string literal` **at EOF**, blaming the
+  closing tag while the source looks fine. `tsc` ignores `.astro`, so
+  `check:ratchet` is the only gate that catches this class (measured 2026-09-14).
+  Put such prose in the frontmatter as `//` comments.
+- **`platformProxy: { enabled: true }`** is wrong here. This tree uses
+  `{ environment: undefined }` so `astro build` doesn't make Miniflare evaluate the
+  Durable Object before `durableObjectExportsPlugin` has run.
 
 ## References
 
 - [Astro Cloudflare adapter](https://docs.astro.build/en/guides/integrations-guide/cloudflare/) — authoritative for v13
 - [CF Workers framework guide — Astro](https://developers.cloudflare.com/workers/frameworks/framework-guides/astro/)
-- `docs/cf-workers-migration-todo.md` — C1+C2+C3 shipped; `dev.one.ie` live on Workers
-- `docs/deploy.md` — bundle-size diagnosis + LOCKED rules
+- `.claude/commands/deploy.md` — the pipeline, the gates, rollback · `.claude/skills/deploy/REFERENCE.md` — the 5 LOCKED bundle rules + verified numbers (split out 2026-09-17)
 - `.claude/rules/astro.md` — auto-loaded on `*.astro` edits
+- `one.ie/web/astro.config.mjs` — the authority for adapter options and every `vite.ssr` list
 
 ---
 
-**Version**: 2.0.0 — Astro 6 + CF Workers+Assets (2026-04-18)
-**Previous**: 1.0.0 (Astro 5 + CF Pages)
+**Version**: 3.0.0 — reconciled against `one.ie/web` (2026-08-02)
+**Previous**: 2.0.0 (2026-04-18, described a dual-adapter config this tree never had)

@@ -1,0 +1,210 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "id": "hook:staff-announce",
+            "type": "command",
+            "command": "bun \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/announce.ts\"",
+            "timeout": 6,
+            "blocking": false
+          },
+          {
+            "id": "hook:staff-inbox",
+            "type": "command",
+            "command": "bun \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/inbox.ts\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:user-prompt-signal",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/user-prompt-signal.sh\"",
+            "timeout": 3,
+            "blocking": false
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "id": "hook:git-add-guard",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/git-add-guard.sh\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:branch-pin",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/branch-pin.sh\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:load-guard",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/load-guard.sh\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:governor-escape",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/governor-escape.sh\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:commit-verify-guard",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/commit-verify-guard.sh\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:dev-only",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/dev-only.sh\"",
+            "timeout": 5,
+            "blocking": true
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "id": "hook:fable-fallback",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/fable-fallback.sh\"",
+            "timeout": 5,
+            "blocking": true
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "id": "hook:config-protect",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/config-protect.sh\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:dev-only",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/dev-only.sh\"",
+            "timeout": 5,
+            "blocking": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "id": "hook:post-edit",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/post-edit-check.sh\"",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "id": "hook:design-check",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/design-check.sh\"",
+            "timeout": 5,
+            "blocking": true
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "id": "hook:do-doc-check",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/do-doc-check.sh\"",
+            "timeout": 3,
+            "blocking": false
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "id": "hook:do-outcome-gate",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/do-outcome-gate.sh\"",
+            "timeout": 60,
+            "blocking": true
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "id": "hook:task-complete",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/task-complete-verify.sh\"",
+            "timeout": 120,
+            "blocking": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "id": "hook:auto-continue",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/auto-continue.sh\"",
+            "timeout": 5,
+            "blocking": true
+          },
+          {
+            "id": "hook:staff-cleanup",
+            "type": "command",
+            "command": "bun \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/cleanup.ts\"",
+            "timeout": 3,
+            "blocking": false
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "id": "hook:session-start",
+            "type": "command",
+            "command": "bash \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/session-start.sh\"",
+            "timeout": 5,
+            "blocking": false
+          }
+        ]
+      }
+    ]
+  }
+}

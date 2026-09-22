@@ -1,9 +1,32 @@
-# TypeDB 3.0 Complete Reference Skill
+---
+name: typedb
+description: Write, debug, and deploy TypeQL against the ONE substrate on TypeDB 3.12.1. Use when editing any `.tql` file under `schema/` (one.tql, roles.tql, do.tql, reason.tql, router.tql, factory.tql, work-contract.tql, migrations/), writing a `fun`, composing a match/insert/update/put pipeline, reading or writing through the `/v1/` HTTP API, or diagnosing a TypeDB error code (TQL0, REP1, REP4, REP44, FIN4, FUN5, SVL2, COW5, WCP4, INF11) or a query that hangs. ALSO covers the gateway door every query here goes through — the 10000-row cap, the 10s timeout and the circuit breaker, NO_WRITE_RETRY, read-after-write lag, and the request-path rule. Triggers — "write a TypeQL query", "add a fun", "change the schema", "deploy the schema", "this TypeDB query times out", "why is this .tql rejected", "match/fetch/reduce syntax", "TypeDB 2.x vs 3.x", "my query returns exactly 10000 rows", "why is truncated always false", "how do I count rows in TypeDB", "TypeDB 500 aborted due to timeout", "TypeDB circuit open / 503", "400 on a valid insert", "CNT5 card violation", "can I retry a failed write", "should this read go through the snapshot".
+---
 
-> **Version**: TypeDB 3.x (3.0+)
-> **Last Updated**: 2026-04-20
-> **Purpose**: Comprehensive TypeDB/TypeQL knowledge for Claude Code
+# TypeDB 3.x Complete Reference Skill
+
+> **Version**: TypeDB **3.12.1** — prod (TypeDB Cloud) AND the local OrbStack
+> container both run 3.12.1 as of 2026-07-29. Profiles: `.claude/typedb/{dev,prod}.env`,
+> switched by `.claude/scripts/typedb-env.sh`. Never assume 3.0 or 3.8.x behaviour.
+> **Last Updated**: 2026-09-21 — added *The door: what changes because you go through a gateway*
+> (the row cap, the request-path rule, the timeout/breaker, `NO_WRITE_RETRY`, read-after-write,
+> two concurrency defects, and the `fun`-read-by-two-engines constraint coming with `tql-edge`).
+> Syntax claims last re-probed read-only against live 3.12.1 on 2026-08-02.
+> **Purpose**: Comprehensive TypeDB/TypeQL reference for Claude Code
 > **Primary sources**: TypeQL paper (Dorn & Pribadi, PACMMOD 2024, *Best Newcomer Award* at SIGMOD/PODS 2024) · TypeDB lecture series (Vaticle YouTube, 2023–2024) · "Inside TypeDB: The Next Chapter" (Dec 2025) · TypeDB 3.0 roadmap ([GitHub #6764](https://github.com/typedb/typedb/issues/6764))
+>
+> **In-repo canon is `schema/`, not this file.** `schema/one.tql` (480 lines) is the
+> locked ontology; `schema/CLAUDE.md` says which files load, in what order, and which
+> must never co-load. When this skill and a `.tql` disagree, the `.tql` wins.
+>
+> **How this repo actually talks to TypeDB: the `/v1/` HTTP API.** No driver package
+> is installed anywhere in the monorepo. TypeScript goes through
+> `one.ie/web/src/lib/substrate.ts` → the gateway in `api/src/index.ts` → `POST
+> {TYPEDB_URL}/v1/query`; the Python scripts in `backup/scripts/typedb/` use
+> `urllib` against the same endpoint. The *Python Driver* section below is
+> background for reading upstream docs — it is not the path any code here takes.
+>
+> **Do not mock TypeDB in tests.** Real TypeDB or skip (root `CLAUDE.md`).
 
 ---
 
@@ -20,7 +43,8 @@
 9. [Value Types](#value-types)
 10. [Python Driver](#python-driver)
 11. [Transaction Management](#transaction-management)
-12. [Best Practices](#best-practices)
+12. [The door: what changes because you go through a gateway](#the-door-what-changes-because-you-go-through-a-gateway) — **repo-specific; the row cap, the breaker, `NO_WRITE_RETRY`**
+13. [Best Practices](#best-practices)
 13. [Query Optimization](#query-optimization)
 14. [Complete Keyword Reference](#complete-keyword-reference)
 15. [Mental Models (Type Theory, Polymorphism, Dependent Types)](#mental-models-type-theory-polymorphism-dependent-types)
@@ -30,7 +54,7 @@
 19. [Development Tools & Ecosystem](#development-tools--ecosystem) — Studio, Vibe Querying, Cloud, LSP
 20. [SQL → TypeQL: Concrete Contrasts](#sql--typeql-concrete-contrasts)
 21. [Works With /sui](#works-with-sui--the-same-ontology-two-deterministic-fires)
-22. [Production Patterns: Classifier Functions, Thing Collapse, Symmetric Routing](#production-patterns-classifier-functions-thing-collapse-symmetric-routing) — from `src/schema/world.tql`
+22. [Production Patterns: Classifier Functions, Thing Collapse, Symmetric Routing](#production-patterns-classifier-functions-thing-collapse-symmetric-routing) — from `schema/world.tql`
 23. [Project-Specific Patterns](#project-specific-patterns)
 
 ---
@@ -79,20 +103,47 @@ This is a generalization of Wadler's *Propositions as Types* into **Queries as T
 - **Type Hierarchies**: Single-inheritance subtyping with `sub`. Works on entities, relations, AND attributes.
 - **Type Functions**: `fun` declarations replace 2.x `rule`; dependent-type subtyping generalizes Datalog-like reasoning.
 
-### Connection Details (TypeDB Cloud)
+### Connection Details (this repo — the `/v1/` HTTP API)
 
-```python
-from typedb.driver import TypeDB, Credentials, DriverOptions, TransactionType
+Two endpoints, both 3.12.1, both database `one`, credentials in
+`.claude/typedb/{dev,prod}.env`:
 
-# Connect to TypeDB Cloud
-credentials = Credentials("admin", os.environ["TYPEDB_PASSWORD"])
-options = DriverOptions(is_tls_enabled=True)
-driver = TypeDB.driver("https://server.cluster.typedb.com:80", credentials, options)
-
-# Open transaction (no sessions in 3.0!)
-with driver.transaction("database-name", TransactionType.READ) as tx:
-    result = tx.query("match $e isa entity; select $e; limit 10;").resolve()
 ```
+prod  https://flsiu1-0.cluster.typedb.com:1729   (TypeDB Cloud)
+dev   http://127.0.0.1:8000                      (local OrbStack container)
+```
+
+`bash .claude/scripts/typedb-env.sh {dev|prod|status|up|down}` rewrites the four
+`TYPEDB_*` lines in `one.ie/web/.env`. Every call is two HTTP requests:
+
+```bash
+TOKEN=$(curl -s -X POST "$TYPEDB_URL/v1/signin" \
+  -H 'content-type: application/json' \
+  -d "{\"username\":\"$TYPEDB_USERNAME\",\"password\":\"$TYPEDB_PASSWORD\"}" \
+  | jq -r .token)
+
+curl -s -X POST "$TYPEDB_URL/v1/query" \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"query":"match $g isa group; reduce $c = count($g);",
+       "databaseName":"one","transactionType":"read","commit":false}'
+```
+
+`transactionType` is `read` | `write` | `schema`; `commit` must be `true` for
+anything but `read`. `GET /v1/databases/one/schema` dumps the live schema —
+the fastest way to answer "is this fun actually deployed?". `GET /v1/version`
+returns the running build.
+
+**A timeout arrives as HTTP 500, not 408 or 503.** The body carries
+`"The operation was aborted due to timeout"` — and that string was absent from
+`RETRYABLE` in `one.ie/web/src/lib/substrate.ts` until 2026-09-14, so every timed-out
+read failed hard on the first try. Reads now retry it; **writes deliberately do
+not** — a write that timed out may already have committed, so retrying it is a
+duplicate, not a recovery. Classify by the message, never by the status code.
+
+The Python driver (`TypeDB.driver(...)`, `driver.transaction(...)`) is covered in
+the *Python Driver* section for reading upstream docs. **No code in this repo
+uses it** — there is no `typedb-driver` dependency in any `package.json` or
+`requirements.txt`.
 
 ---
 
@@ -100,7 +151,7 @@ with driver.transaction("database-name", TransactionType.READ) as tx:
 
 ### MUST-KNOW RULES
 
-| Feature | Correct TypeDB 3.0 |
+| Feature | Correct TypeDB 3.x (verified on 3.12.1) |
 |---------|-------------------|
 | Sessions | **NO SESSIONS** - transactions directly on driver |
 | Concept API | **DROPPED** — all operations go through TypeQL queries |
@@ -115,6 +166,42 @@ with driver.transaction("database-name", TransactionType.READ) as tx:
 | Role aliasing | `relates group as owned` — a subtype relation can rename an inherited role |
 | List attributes | `attribute emails, value string[];` — 3.x-only syntax for list-valued attributes |
 | Struct values | `struct address { street: string, city: string };` — 3.x compound values |
+
+### VERIFIED against the live cluster (flsiu1-0.cluster.typedb.com)
+
+These override anything else in this file — each was probed against the prod
+TypeDB Cloud build (`commit:false` schema txs, or read txs with `with fun`).
+Rows are dated: **2026-07-07** was probed on the pre-bump build; the syntax rows
+marked **re-probed 2026-08-02** were re-run against live **3.12.1** and still
+hold. `with fun … match …` in a `read` transaction is the cheap way to test
+function syntax without touching the schema.
+
+| Claim elsewhere in this file | What the live cluster ACTUALLY accepts |
+|---|---|
+| `return first if (...) then X else Y` conditional returns | **REJECTED — re-probed 2026-08-02 on 3.12.1, still rejected.** `match let $x = if (true) then 1 else 2;` → `[TQL0] [TQL03] syntax error: expected PLUS, MINUS, TIMES, DIVIDE, POWER, or MODULO`. There is no conditional *expression* in TypeQL. Encode classifiers as an exhaustive disjunction that binds a `let` per branch, then `return first $var`: `{ $st == "halted"; let $stage = "halted"; } or { … };` — this is exactly what the deployed `do_stage` and `path_status` do. **Beware:** `schema/world.tql`, `schema/sui.tql` and `schema/skins.tql` in this repo are written in the `if/then/else` form and are therefore NOT deployable to the main `one` database — see the note in *Production Patterns* below. `schema/reason.tql` carries the deployable rewrite of `path_status`. |
+| `return $x;` for scalar functions | **REJECTED** — scalar returns require a selector: `return first $x;` (`expected return_single_selector or return_reduce_reduction`) |
+| `fun f() -> { $to: city }` — naming the returned variable in the signature | **REJECTED** (re-probed 2026-08-02) — `[TQL0] syntax error: expected named_type_any`. A stream return type is types only: `-> { city }`, `-> { actor }`, `-> { thing, string }`. Tuple returns without braces (`-> string, integer`) are valid. |
+| stream membership via `contains` — `my_stream_fun($x) contains $y;` | **REJECTED** (re-probed 2026-08-02) — `[REP44] The variable 'y' is required to be bound to a value before it's used`. `contains` is *substring* matching on strings. Iterate a stream with `let $y in my_stream_fun($x);` — the only form the deployed schema uses. |
+| calling a `fun` and then reading attributes off the returned rows | **Works, but it is the wrong tool and it is slow.** Functions are for **COUNTS and scalars** — `return count($x)`, `return first $status`. When you need **rows plus their attributes**, do NOT call the fun and then `has` the results: **inline the fun's body** into your match and select the attributes there. This is the single most common cause of a query that "works locally, hangs in prod". |
+| a `\uXXXX` escape inside a TypeQL string literal | **Killed the server process on 3.8.3** (a PANIC, not an error) — reproducer at `.claude/scripts/typedb-probes/panic-probe.py`, and the reason `backup/scripts/typedb/dump.py` renders every literal with `ensure_ascii=False`. Prod and local moved to **3.12.1 on 2026-07-29 and this has not been re-probed since.** Treat as unresolved: keep emitting raw UTF-8, never `\uXXXX`. The same build also panicked on the same variable used in two roles. |
+| `fun f(threshold: double = 10.0)` default params | **REJECTED** — params need `$` and no defaults: `fun f($threshold: double)` |
+| `define fun` re-applies like types | **REJECTED** (`FUN5 already exists`) — an existing function needs `redefine fun …` (one per tx); `define` is idempotent for types only |
+| `redefine attribute x, value string @values(…)` | Syntax is `redefine x value string @values(…);` — no `attribute` keyword, no comma |
+| value param binding an attribute: `has tag $axis` ($axis: string param) | **REJECTED** (`REP1`) — bind then compare: `has tag $t; $t == $axis;` |
+| role named `as` (e.g. `relates as`) | **REJECTED** — `as` is reserved (role aliasing). A relation using it makes the whole file unparseable |
+| labels are per-kind | Labels are **global across kinds** — `entity channel` cannot coexist with `attribute channel` (`SVL2`) |
+| a fun calling a not-yet-defined fun validates | Cross-fun references only resolve against **committed** functions (`REP4` on commit:false) — commit dependencies first, or define both in one tx. This is why `schema/factory.tql` is one file: a partial multi-file deploy produced prod's `[REP4] Could not resolve function with name 'gaps'` on 2026-07-29. |
+| a fun body that type-checks in isolation deploys | **`FIN4` / `QUA2`** — "The types inferred for the return statement of function 'f' did not match those declared in the signature. Mismatching index: 0". The return type is checked against what the body actually binds, so `-> string` with a body binding an attribute concept fails. Fix the signature or bind a value with `let`. |
+| reading an attribute off a variable the planner infers as a *union* of owner types | **`INF11`** — the union has no member that can own the attribute, and the **whole schema transaction is rejected** at function type-check. This is why the three `*-schema.tql` domain files are absent from prod (`schema/CLAUDE.md`). Constrain the variable's type before reading the attribute. |
+| `return first true` (boolean literal) | **REJECTED — re-probed 2026-08-02 on 3.12.1, still rejected** (`[TQL0] syntax error: expected var`) — bind first: `let $ok = true; return first $ok;`. The live schema contains **zero** `return first <literal>`; every one of its nine distinct return-first forms returns a bound variable (`$ok`, `$stage`, `$status`, `$toxic`, …). The deployed existence-check idiom is `match <the predicate>; let $ok = true; return first $ok;` — see `route_exists`. |
+| `put` with non-key attributes is idempotent | **CRASHES on keyed entities** (`COW5` duplicate-key) when any non-key attribute differs from the existing row — the whole pattern fails to match, put inserts a duplicate @key. Put by key only, then put each invariant attribute as its own stage: `put $m isa actor, has aid "X"; put $m has actor-type "agent";` Never put attributes that vary (e.g. `name`) |
+| `delete $attr of $e;` removes an ownership | **REJECTED** (`REP1 Object vs ThingType`) — and `delete has $attr of $e;` parses but can't feed a computed re-insert. There is NO in-database increment on this build |
+| computed values in writes: `insert $e has strength ($s + 1)` or `has strength $ns` (value var) | **REJECTED** (`REP1 Attribute vs Value`) — writes take LITERALS only. The increment pattern is read-then-write: read current values, compute in the caller, write back with `update $e has strength 7.0;` (update = replace-or-add on card 0..1, no delete needed). See substrate.ts readPathWeights/updatePathWeights |
+| relation insert/match+update: `insert $r (role: $x) isa rel-type, has attr val;` (role-list before `isa`) | **INSERT: REJECTED** (`WCP4 Could not determine the type of the insert variable '_anonymous'`). **MATCH-then-UPDATE: REJECTED** (`REP1 variable cannot be declared as both Object/Thing and ThingType`) the moment that same match feeds an `update`/`delete` stage — a plain match+select with this shape is fine. Verified 2026-07-12 while shipping `path-context` writes (`substrate.ts` `upsertPathContext`, `fade()`, `follow()`). Fix: declare `isa` first, `links` second — `insert $r isa rel-type, links (role: $x), has attr val;` and `match $r isa rel-type, links (role: $x), has attr val; update $r has attr val2;` both work for insert, match, AND update. Only pure match+select tolerates the role-first shorthand; treat isa-first as the universal safe form. |
+| re-asserting `isa <type>` on a variable whose type is already implied by a role constraint elsewhere in the same match (e.g. `$e isa path, links(...)` after `$pc isa path-context, links(followed: $e)` already implies `$e` is a `path` via the schema's `path plays path-context:followed`) | **NOT rejected, but silently forces a full unbound scan** of the re-asserted type before the join — on a relation with real production volume (e.g. `path`, thousands of rows) this reliably **times out** (`"The operation was aborted due to timeout"`) even though the equivalent query with the redundant `isa` dropped returns instantly. Verified 2026-07-12: `match $e isa path, links(source:$a,target:$b); $pc isa path-context, links(followed:$e), has context-tag $ct, has context-strength $cs; ...` timed out; `match $pc isa path-context, has context-tag $ct, has context-strength $cs, links(followed:$e); $e links(source:$a,target:$b); ...` (path-context first, no re-`isa` on `$e`) returned instantly with identical results. Rule: **start the match from the smallest/most-selective relation, and never re-declare a type TypeDB can already infer from a role constraint.** |
+| joining `has <attr> $x` on BOTH role players of the same two-role relation in one match (e.g. `(container: $p, contained: $c) isa containment; $c has tid $id; $p has tid $parent;`) | **NOT rejected, but reliably TIMES OUT** (10s, `"The operation was aborted due to timeout"`) — even on relation types with single-digit row counts platform-wide (`containment`: 9 rows, `blocks`: 2 rows). Reproduced consistently regardless of `limit`, statement order, or dropping a redundant `isa thing` on the role players — this is a distinct defect from the row above (that one is about a *redundant* `isa`; this one triggers even with the minimal, non-redundant `has` shape). Verified 2026-07-16 in `one.ie/web/src/pages/api/things/index.ts` (task board's subtask-parent + blocked-by lookups) — the query had been silently swallowing this 10s hang via `.catch(() => [])` on every single page load. **Each half in isolation is fast** (`$c has tid $id;` alone: ~0.7s; `$p has tid $parent;` alone: ~1s) — it's specifically resolving an attribute on **both** sides in the same query that's poisonous. Fix: split into two queries — (1) `match (container: $p, contained: $c) isa containment; limit N; select $p, $c;` with NO attribute join at all (returns raw entity `iid`s, sub-second), then (2) batch-resolve every involved `iid` to its attribute in ONE disjunction query: `match { $x iid 0x1e...; } or { $x iid 0x1e...; }; $x has tid $id; select $x, $id;` (also sub-second, confirmed via `flattenAnswers` — an entity concept with no `value`/`label` flattens to its bare `iid` string, so `row['p']`/`row['c']` from step 1 are directly usable as iid literals in step 2, no re-quoting). |
+
+Deploy path: `POST {TYPEDB_URL}/v1/signin` → `POST /v1/query` with `transactionType:"schema"`, validate `commit:false` first. Working deployer pattern: `one.ie/web/scripts/deploy-chat-schema.ts`.
 
 ### Transaction Pattern (No Sessions!)
 
@@ -635,13 +722,14 @@ fun friend_count($user: user) -> integer:
     match ($user, $friend) isa friendship;
     return count($friend);
 
-# Recursive function (transitive closure)
-fun reachable($from: node) -> { node }:
+# Recursive function (transitive closure).
+# `node` is a DEAD NAME in this repo — use the real domain type.
+fun reachable($from: city) -> { city }:
     match
-        { $_ isa edge, links (from: $from, to: $to); }
+        { $_ isa flight, links (from: $from, to: $to); }
         or {
             let $mid in reachable($from);
-            $_ isa edge, links (from: $mid, to: $to);
+            $_ isa flight, links (from: $mid, to: $to);
         };
     return { $to };
 ```
@@ -675,7 +763,8 @@ select $name, $age;
 with
     fun is_adult($u: user) -> boolean:
         match $u has age $a; $a >= 18;
-        return first true;
+        let $ok = true;              # bind — `return first true` is a TQL0 syntax error
+        return first $ok;
 match
     $u isa user;
     let $adult = is_adult($u);
@@ -683,127 +772,136 @@ match
 select $u;
 ```
 
+A `with fun` block runs inside a plain **read** transaction, which makes it the
+cheapest way to test function syntax against a live server without opening a
+schema transaction. Every re-probe in the VERIFIED table above was done this way.
+
+Each ad-hoc function needs **its own `with`** — `with fun a(…): …; fun b(…): …;`
+is a parse error (`expected query_pipeline or WITH`). Write
+`with fun a(…): …; with fun b(…): …; match …` and `b` may call `a`.
+
 ---
 
 ## Inference Rules (Emergence Patterns)
 
-TypeDB inference rules derive NEW facts automatically from existing data. This is the foundation for emergent intelligence.
+**There are no rules in TypeDB 3.x.** The `rule <name>: when { … } then { … };`
+construct was removed with the 2.x line, and the live 3.12.1 schema dump contains
+zero of them. Everything this section used to show as a rule is written as a
+`fun` today. The translation is mechanical and lossy in exactly one place:
 
-### Basic Classification Rule
+| 2.x rule | 3.x function |
+|---|---|
+| `when { … }` | the `match` body |
+| `then { $e has tier "elite"; }` | a `let $tier = "elite";` binding + `return first $tier` |
+| fires automatically, writes derived facts into the graph | evaluated **on call**; derives nothing until something calls it |
+| chained rules (rule B reads rule A's output) | function composition — B calls A, or (faster) B inlines A's body |
+| rule firing order / priority | the top-down order of the disjunction branches, visible in the source |
+| `?val = $a / $b` value variables | `let $val = $a / $b;` — all variables use `$` |
 
-```typeql
-define
+The loss is the automatic part: a rule *materialised* derived facts, a function
+*computes* them per query. Nothing in the graph changes until a caller asks.
 
-rule elite-pattern:
-    when {
-        $e isa signal-edge,
-            has win-rate $wr,
-            has trail-pheromone $tp,
-            has traversal-count $tc;
-        $wr >= 0.75;
-        $tp >= 70.0;
-        $tc >= 50;
-    } then {
-        $e has tier "elite";
-    };
-```
+### Basic classification
 
-### Danger Detection
-
-```typeql
-define
-
-rule danger-zone:
-    when {
-        $e isa signal-edge,
-            has win-rate $wr,
-            has alarm-pheromone $ap;
-        $wr < 0.40;
-        $ap >= 25.0;
-    } then {
-        $e has tier "danger";
-    };
-```
-
-### Chained Rules (Hardening)
+The 2.x "elite pattern" rule becomes a classifier that returns the tier. Note the
+shape: **an exhaustive disjunction, each branch binding the same `let`, closed by
+`return first $var`.** There is no `if/then/else` expression in TypeQL — see the
+VERIFIED table.
 
 ```typeql
 define
 
-# This rule depends on elite-pattern rule firing first
-rule hardening-candidate:
-    when {
-        $e isa signal-edge,
-            has tier "elite",         # DERIVED from elite-pattern rule
-            has traversal-count $tc,
-            has trail-pheromone $tp;
-        $tc >= 100;
-        $tp >= 80.0;
-    } then {
-        $e has hardening-ready true;
-    };
+fun edge_tier($e: path) -> string:
+    match
+        $e has strength $s, has resistance $r, has traversals $t;
+        { $s >= 70.0; $t >= 50;
+          let $tier = "elite"; }
+        or { $r >= 25.0; not { $s >= 70.0; $t >= 50; };
+          let $tier = "danger"; }
+        or { not { $s >= 70.0; $t >= 50; };
+             not { $r >= 25.0; };
+             let $tier = "active"; };
+    return first $tier;
 ```
 
-### Rule with Disjunction (OR)
+Every branch after the first must **negate the earlier branches' conditions**.
+A disjunction is not a cascade: without the `not { … }` guards, a path matching
+two branches yields two rows and `return first` picks an arbitrary one. This is
+the single most common bug when porting a chained rule set. `path_status` in
+`schema/reason.tql:63` is the deployed five-branch example — read it before
+writing your own.
+
+### Chained rules become composition
+
+A rule that read another rule's derived fact becomes a function that calls it:
 
 ```typeql
 define
 
-rule high-funding-opportunity:
-    when {
-        $f isa funding-snapshot, has funding-rate $rate;
-        { $rate > 0.001; } or { $rate < -0.001; };
-    } then {
-        $f has severity "high";
-    };
+fun hardening_ready($e: path) -> boolean:
+    match
+        $e has traversals $t, has strength $s;
+        $t >= 100; $s >= 80.0;
+        let $tier = edge_tier($e);
+        $tier == "elite";
+        let $ok = true;
+    return first $ok;
 ```
 
-### Rule with Computed Value
+For anything hot, **inline the body instead of calling** — a call is an
+optimisation barrier, and the deployed `preflight` inlines its three pre-checks
+rather than calling `can_receive`/`is_safe`/`within_budget` for exactly this
+reason.
+
+### Disjunction over a single value
 
 ```typeql
 define
 
-rule reliable-detector:
-    when {
-        $d isa detector,
-            has total-predictions $tp,
-            has correct-predictions $cp;
-        $tp >= 20;
-        ?acc = $cp / $tp;
-        ?acc >= 0.60;
-    } then {
-        $d has pheromone-level ?acc;
-    };
+fun path_pressure($p: path) -> string:
+    match
+        $p has resistance $r;
+        { $r > 25.0;  let $sev = "high"; }
+        or { $r <= 25.0; let $sev = "normal"; };
+    return first $sev;
 ```
 
-### Superhighway Detection
+### Computed values
+
+`?acc = $cp / $tp` becomes `let $acc = $cp / $tp;`. The result is returned, not
+written back to the instance — **a function cannot write.**
 
 ```typeql
 define
 
-rule superhighway-edge:
-    when {
-        $e isa signal-edge,
-            has trail-pheromone $tp,
-            has traversal-count $tc;
-        $tp >= 85.0;
-        $tc >= 100;
-    } then {
-        $e has is-superhighway true;
-    };
+fun delivery_rate($p: path) -> double:
+    match
+        $p has attempts $a, has deliveries $d;
+        $a >= 20;
+        let $rate = $d / $a;
+    return first $rate;
 ```
 
-### Querying Derived Facts
+### Querying derived values
+
+In 2.x you matched the materialised fact. In 3.x you call the function and
+compare its result:
 
 ```typeql
-# tier = "elite" is DERIVED by inference rule, not inserted
-match $e isa signal-edge, has tier "elite";
-select $e;
-
-# Find hardening candidates (derived from chained rules)
-match $e isa signal-edge, has hardening-ready true;
+# 2.x: match $e isa signal-edge, has tier "elite";   <- the fact was written
+# 3.x: the tier is computed at query time
+match
+    $e isa path;
+    let $tier = edge_tier($e);
+    $tier == "elite";
 select $e;
 ```
+
+**If you need the derived value to persist** — because you want to index it,
+sort a large set by it, or hand it to a non-TypeQL consumer — compute it in the
+caller and write it back with `update`. The substrate does this for path weights
+(`readPathWeights` / `updatePathWeights` in `one.ie/web/src/lib/substrate.ts`),
+because there is no in-database increment on this build (VERIFIED table).
 
 ---
 
@@ -1268,6 +1366,154 @@ def write_with_retry(driver, query, max_retries=3):
 
 ---
 
+## The door: what changes because you go through a gateway
+
+Everything above this line is TypeQL — true of any TypeDB. This section is true
+only *here*, and it is the part that costs days. **No code in this monorepo talks
+to TypeDB. It talks to a gateway that talks to TypeDB** (`one.ie/web/src/lib/
+substrate.ts` → `api/src/index.ts` → `POST {TYPEDB_URL}/v1/query`). Every rule
+below is a property of that door, not of the language.
+
+### The row cap: `limit` is a request, 10000 is the answer
+
+`GATEWAY_ROW_CAP` (`substrate.ts:54`) is **10000**, and the gateway returns at most
+that many rows whatever your TypeQL says. Measured 2026-09-15 against api.one.ie,
+same query, only the limit changed: 9000 → 9000, 10000 → 10000, 12000 → 10000,
+20000 → 10000, 50000 → 10000.
+
+Two rules follow, and the second is the one that cost a day (`substrate.ts:40-53`):
+
+1. **A `limit` above the cap buys nothing.** It is not a bigger budget, it is decoration.
+2. **A truncation check of the form `rows.length >= MY_LIMIT` is BLIND** whenever
+   `MY_LIMIT` exceeds the cap, because the length can never reach it. Compare
+   against `effectiveRowLimit(myLimit)` (`substrate.ts:57`) or the check silently
+   always says "clean".
+
+What rule 2 actually did, in the repo's own words: `readTasksNarrow` asked for
+20000 and `tasks:board` asks for 100000, and **both of their truncation flags were
+unreachable**. The tag branch was being cut at 10000 of 10034 rows; TypeDB
+truncates at the **tail**, so the NEWEST tasks came back with `tags: []` — and a
+task with no `workspace:` tag reads as belonging to the PLATFORM workspace and is
+hidden from its own owner behind a cheerful `{ok:true, truncated:false, tasks:[]}`.
+
+**`reduce` is not row-capped, and is therefore the only honest way to size a read
+through this door.** The same query that returned 10000 rows answered `10034` under
+`reduce $n = count`. Size first, then decide whether you can page it.
+
+```typeql
+# Sizing a read — NOT capped
+match $t isa thing, has thing-type "task";
+reduce $n = count;
+```
+
+Never hardcode the number: import `GATEWAY_ROW_CAP` / `effectiveRowLimit`. It lives
+on the door for exactly one reason — this is the second receiver it blinded, and a
+third copy of the number is how the first two drifted.
+
+### Do not query on the request path
+
+`../CLAUDE.md § The brain and the edge` is the standing rule: TypeDB is the brain of
+record and it is in Virginia, so a receiver reads the **snapshot** (KV / BrainDO JSON),
+and TypeDB takes writes and the sync. A live query from Thailand is **1.2–1.6 s**; the
+same answer from the isolate memo is **26–58 ms**.
+
+This is not advice about speed. `bash .claude/scripts/signal-watch.sh` reads a
+receiver that reaches for the brain as **red**, and `one.ie/web/scripts/edge-read-ratchet.mjs`
+gates it in three directions — a per-file ceiling, a collapse check (a snapshot read may
+not answer `[]` on failure), and a **floor** for `mustStayLive` files whose reads GUARD
+writes and must stay live (`membership.ts` counts a group's owners before a demotion; on
+a 30s-stale snapshot two concurrent demotions both read "two owners" and leave none).
+
+Why it matters when you are writing TypeQL: a query you add to a resolver is a
+ratchet rise. Write it against the snapshot, or put it behind a memo the way
+`src/lib/tasks/board.ts` does — the repo calls that one "the one to copy".
+
+### The timeout, the breaker, and why a valid query returns 500
+
+| what | value | where |
+|---|---|---|
+| gateway per-request bound | **10 s** | `TYPEDB_TIMEOUT_MS`, `api/src/index.ts:26` |
+| breaker opens after | **5 failures in 10 s** | `threshold` / `windowMs`, `api/src/security.ts:37-38` |
+| breaker stays open | **30 s** | `cooldownMs`, `api/src/security.ts:39` |
+
+A 500 carrying `The operation was aborted due to timeout` is the gateway's own 10 s
+bound, not a bad query. Measured the same day against production, a keyed point lookup
+or a one-row insert answered in **0.32–0.34 s** every time, while a `like`-regex scan
+hit the bound cold (0.4–0.6 s warm). **The cluster has slow windows; a correct query
+meets them.**
+
+Two consequences worth designing around:
+
+- **A retry loop is a load generator.** Five 5xx in ten seconds opens the breaker for
+  thirty, and a poll cadence tighter than the cooldown can never recover inside its own
+  budget. Poll while the substrate is *answering*; stop adding load the moment it refuses.
+- **Prefer a keyed point lookup to a scan.** `like`-regex over a growing corpus is the
+  shape that finds the bound first.
+
+### Writes: `NO_WRITE_RETRY`, and idempotency by observation
+
+`RETRYABLE` includes 500, but `NO_WRITE_RETRY = {404, 500}` (`substrate.ts:101`) refuses
+to retry a **write** on 500 — because a timed-out write may already have COMMITTED, and a
+blind second attempt inserts it twice. That rule is right and production code must not
+work around it.
+
+A **fixture** may do what production may not, because it knows exactly which row it
+creates: it can LOOK before it retries. Pass a `landed` read — a point lookup for what the
+write creates — and after an infra failure ask the substrate whether the write landed
+anyway. Landed → done. Not landed → wait and write again. That is idempotency by
+observation, not by assumption. `one.ie/web/tests/helpers/real-typedb-fixtures.ts` is the
+implementation; `mustWrite` is the entry point.
+
+It also covers the leftover race: if the first attempt committed but was not yet readable,
+the retry of a keyed insert (`tid`/`aid`/`gid` are all `@key`) is refused as a key
+violation, and the `landed` re-check after ANY refusal then finds the row.
+
+### Read-after-write is not consistent
+
+A committed plain insert took **516 ms to become readable** on an IDLE cluster (measured
+2026-08-02). Anything that writes and then asserts must wait for visibility, not assume
+it — `waitVisible` in `tests/helpers/probe-sweep.ts`. A test that claims and then reads
+without waiting races the substrate and gets a *correct* `not_found`.
+
+### Two concurrency defects that read as bad TypeQL
+
+Both are real, both look like your query is wrong, and neither is:
+
+- **Concurrent transactions racing to create the same attribute.** Two inserts that each
+  introduce the same new attribute value (`member-role "member"`) race, and the loser is
+  rejected with a **400 on a valid insert**. The fix is shape, not retry: **one transaction
+  per group that shares a new attribute or entity** — never `Promise.all` over them.
+- **`CNT5` card violation on a `put`.** A `put` of an actor as `actor-type "agent"` collides
+  with an actor already carrying `actor-type "human"` on a `@card(0..1)` attribute. Seen
+  where a helper auto-creates a twin for an actor a test had already made by hand; the fix
+  is to leave the auto-created one uncreated rather than to loosen the card.
+
+### Coming with `tql-edge`: a `fun` will be read by two engines
+
+**Not in force yet — C2 and C3 of `text/tql-edge-todo.md` are unstarted and the solver does
+not exist.** Written here because it changes how a `fun` should be designed from now on, and
+because discovering it at codegen is worse than reading it here.
+
+Today a `fun` is executed only by TypeDB. After `tql-edge`, `schema/codegen/parse.ts` will
+emit each fun's body as a `Stmt[]` pattern and a pure solver will execute the same pattern
+over JSON in RAM at the edge — so a fun becomes the **single** definition of a rule, run by
+two engines. The census of all 317 funs (`text/tql-edge-plan.md § What TypeQL maps to`) found
+twelve constructs cover every one of them, and that **`fetch`, `try`, `isa!`, `sub` and `iid`
+are at zero uses**. The plan's contract is that a fun introducing one of those will fail
+codegen by name rather than silently dropping out of the edge.
+
+The practical read for anyone writing a `fun` before that lands: stay inside what the 317
+already use — `isa` / `has` / role patterns, comparisons, `let` value and stream calls,
+`or`, `not`, arithmetic, `sort` / `limit` / `offset`, `contains`, `is`, `reduce
+count|sum|max`. A fun written that way needs no migration. One that reaches for `fetch` will.
+
+The second-order reason to care: the funs are also the **manifest of what RAM must hold** —
+they reach at least 22 of 63 entities and 158 of 717 attributes, so four fifths of the
+attribute surface is never read by any question the substrate can be asked. `text/ram-docs.md`
+is why, and `can` reaching three attributes is the number that makes it concrete.
+
+---
+
 ## Best Practices
 
 ### Connection Management
@@ -1659,6 +1905,15 @@ The `[...]` brackets around `$resource.event-timestamp` tell `fetch` this is a m
 
 These are 3.0+ features that change how you model data. Previously unavailable in 2.x.
 
+> **Three of these are UNVERIFIED here.** `struct`, list value types
+> (`value string[]`) and `@index` have **zero occurrences** in `schema/*.tql`
+> and **zero** in the live `GET /v1/databases/one/schema` dump, and confirming
+> them needs a schema transaction, which is a write. Treat the `struct`, *List
+> Attributes* and *Relation Indexing* subsections below as upstream-documentation
+> summaries, not as things known to work on 3.12.1. Probe with a `commit:false`
+> schema tx before relying on any of them. `@cascade` and `@subkey` are in the
+> same position.
+
 ### Cascading Delete
 
 Delete semantics are explicit via `@cascade` on relation roles. When the annotated role player is deleted, the relation itself is also deleted.
@@ -1749,28 +2004,46 @@ select $other;
 ### Functions (replace 2.x `rule`)
 
 Rules are gone. Functions are the only way to express derivation logic in 3.x.
+See *Inference Rules (Emergence Patterns)* above for the full rule→fun
+translation table.
 
 ```typeql
 define
-fun reachable-cities($from: city) -> { $to: city } :
-  match
-    ($from, $to) isa flight;
+# Return type names TYPES ONLY. `-> { $to: city }` is a TQL0 syntax error
+# ("expected named_type_any").
+fun reachable-cities($from: city) -> { city }:
+  match ($from, $to) isa flight;
   return { $to };
 
-# Transitively: fun with recursive call (bounded by type system)
-fun reachable-transitively($from: city) -> { $to: city } :
+# Transitively: fun with recursive call (bounded by the type system).
+# Iterate a stream with `let $x in f(...)` — NOT `f(...) contains $x`,
+# which is substring matching and fails with REP44.
+fun reachable-transitively($from: city) -> { city }:
   match
     { ($from, $direct) isa flight; }
     or
-    { reachable-cities($from) contains $mid;
-      reachable-transitively($mid) contains $direct; };
+    { let $mid in reachable-cities($from);
+      let $direct in reachable-transitively($mid); };
   return { $direct };
 
-# Use in a query
+# Use in a query — `in`, not `=`, for a stream
 match
   $nyc isa city, has name "New York";
-  let $dests = reachable-transitively($nyc);
-select $dests;
+  let $dest in reachable-transitively($nyc);
+select $dest;
+```
+
+This is exactly the shape of the deployed `descendants-of` and `reachable`
+functions — see `schema/reason.tql` and `schema/roles.tql`:
+
+```typeql
+fun descendants-of($g: group) -> { group }:
+    match
+        { (parent: $g, child: $descendant) isa hierarchy; }
+        or
+        { (parent: $g, child: $mid) isa hierarchy;
+          let $descendant in descendants-of($mid); };
+    return { $descendant };
 ```
 
 Functions can return streams (`{ ... }`), single values (`scalar`), or structs. They compose in pipelines and let the planner see through the abstraction.
@@ -1801,7 +2074,7 @@ Design implication: you can already treat your data as time-travelable for audit
 
 | Metric | Status |
 |--------|--------|
-| Single-node data size | Tested beyond 1 TB |
+| Single-server data size | Tested beyond 1 TB |
 | Benchmark comparison | Competitive with and surpassing Neo4j on first Rust-optimization pass |
 | Read scaling | Horizontal via Raft cluster replicas |
 | Write scaling | Single master; partitioned writes on roadmap |
@@ -1811,7 +2084,7 @@ Design implication: you can already treat your data as time-travelable for audit
 
 - Set **transaction timeout** explicitly if you query long ranges — default is 5 minutes, which bites large migrations.
 - Set **schema lock timeout** only in schema transactions — default 30 seconds is usually fine.
-- Prefer **TypeDB Cloud** or HA cluster for anything user-facing — single-node is for dev, demos, and embedded use.
+- Prefer **TypeDB Cloud** or HA cluster for anything user-facing — a single server is for dev, demos, and embedded use.
 - **Snapshot isolation** is the model. Reads never block writes and vice versa; conflicts surface at commit time → catch `ConflictException` and retry (exponential backoff — see "Error Handling" section).
 
 ---
@@ -1905,21 +2178,21 @@ RETURN path
 ```typeql
 # TypeQL — reachability is a type function, not a path operator
 define
-fun flight-reachable($from: city, $hops: integer) -> { $to: city } :
+fun flight-reachable($from: city, $hops: integer) -> { city }:
   match
     { $hops == 1; ($from, $to) isa flight; }
     or
     { $hops > 1;
       ($from, $mid) isa flight;
-      let $rest = flight-reachable($mid, $hops - 1);
-      $to == $rest; };
+      let $next = $hops - 1;
+      let $to in flight-reachable($mid, $next); };
   return { $to };
 
 match
   $nyc isa city, has name "New York";
-  let $cities = flight-reachable($nyc, 3);
-  $cities has name "London";
-select $cities;
+  let $city in flight-reachable($nyc, 3);
+  $city has name "London";
+select $city;
 ```
 
 In Neo4j, variable-length path is a query-language primitive. In TypeQL, it's a **user-definable function** — which means any reachability logic (weighted, filtered by attribute, cross-type) is equally expressible without new syntax.
@@ -1928,11 +2201,22 @@ In Neo4j, variable-length path is a query-language primitive. In TypeQL, it's a 
 
 ## Works With /sui — The Same Ontology, Two Deterministic Fires
 
-`src/schema/sui.tql:1` already put it best: **"The same ontology. Two deterministic fires."** TypeDB is the learning, classification fire (hypotheses, frontiers, tags — cheap to write, rich to query). Move is the permanent, economic fire (path revenue, escrow, treasury — expensive to write, cheap to trust). The runtime is the fast nervous system between them. Both skills speak the same vocabulary by design — `strength`, `resistance`, `revenue`, `path`, `unit` — so the bridge is a **1:1 rename, not a translation**.
+> **STALE — this section describes a layout the repo no longer has. Verify
+> before acting on any path or function name in it (checked 2026-08-02).**
+> `src/engine/bridge.ts`, `src/move/one/sources/one.move` and `src/lib/sui.ts`
+> **do not exist**, and no file in the monorepo defines `mirrorMark`,
+> `mirrorHarden` or `absorb`. The Move sources live under `pay/contracts/sui/`
+> and the Sui runtime under `pay/backend/src/chains/sui.ts` +
+> `one.ie/web/src/lib/resolvers/sui.ts`. `struct Colony` is **not** in the
+> current `one.move`. The *conceptual* crosswalk below (Move struct ⇌ TQL
+> attribute, shared `strength`/`resistance` names) still holds and is why the
+> section is kept; the file/function inventory does not.
+
+**"The same ontology. Two deterministic fires."** TypeDB is the learning, classification fire (hypotheses, frontiers, tags — cheap to write, rich to query). Move is the permanent, economic fire (path revenue, escrow, treasury — expensive to write, cheap to trust). The runtime is the fast nervous system between them. Both skills speak the same vocabulary by design — `strength`, `resistance`, `revenue`, `path`, `actor` — so the bridge is a **1:1 rename, not a translation**.
 
 ### Canonical crosswalk
 
-`src/schema/sui.tql` (336 lines) is the Rosetta Stone — every Move struct has a matching TQL entity, every Move function has a matching TQL `fun`. Read it when names or shapes drift. The runtime schema is `src/schema/world.tql`; `sui.tql` is the parallel declaration that proves the two layers agree. The canonical ontology (6 dimensions, stable) is `src/schema/one.tql`.
+`schema/sui.tql` (475 lines) is the Rosetta Stone — every Move struct has a matching TQL entity, every Move function has a matching TQL `fun`. Read it when names or shapes drift. **It is codegen input, not a loadable schema** — `schema/codegen/codegen.ts` parses it standalone to emit Move; it is never loaded into TypeDB, and it is written in the `if/then/else` form the server rejects. The canonical ontology (6 dimensions, stable) is `schema/one.tql` (480 lines).
 
 ### Attribute mapping (Move struct ⇌ TypeDB attribute)
 
@@ -1949,11 +2233,11 @@ In Neo4j, variable-length path is a query-language primitive. In TypeQL, it's a 
 | `Highway.id` (address)          | `path.sui-highway-id`          | address     | string   | Sui → TQL on `mirrorHarden()` |
 | `Signal.payload` (vector<u8>)   | `signal.data`                  | bytes       | string   | one-way, usually TQL-only     |
 
-**Name drift to know about:** Move still has `struct Colony` (one.move:71). TypeDB moved to `entity group` per `docs/dictionary.md`, but the Move contract hasn't been migrated yet because that requires a package upgrade. When reading bridge code, treat Move `Colony` as TQL `group`.
+**Name drift to know about:** older Move sources carried a `struct Colony`; TypeDB moved to `entity group` per `text/dictionary.md`. `colony` is a **dead name** (root `CLAUDE.md`) and is **no longer present** in `pay/contracts/sui/.../one.move` (checked 2026-08-02). If you meet it in an old artifact, read it as TQL `group`.
 
 **Load-bearing invariant:** `strength` and `resistance` share the same name in both layers. If you rename one, rename both — `bridge.ts` is a pass-through, there's no translation logic. Type-width (`u64` ↔ `double`) is handled by JSON serialization at the bridge; don't write TQL queries that assume sub-integer precision on these columns.
 
-### Bridge contract (`src/engine/bridge.ts`, 479 lines)
+### Bridge contract (module no longer present — shape reference only)
 
 | Function                          | Fires when                  | Maps                                                                   |
 |-----------------------------------|-----------------------------|------------------------------------------------------------------------|
@@ -1990,84 +2274,116 @@ select $p, $hw;
 ### When to load /sui alongside this skill
 
 - Adding a field to a Move struct that needs off-chain query — the TQL attribute must match
-- Touching `src/move/one/sources/one.move` path/signal logic — `src/schema/one.tql` and `docs/dictionary.md` are the source of truth for names
-- Debugging why `absorb()` isn't writing to TypeDB — check `world.tql` accepts the attribute type
-- Writing a TQL `fun` that needs an on-chain twin — see `src/schema/sui.tql` for parallel function signatures
-- Querying `actor.wallet` values — they're derived by `addressFor(uid)` in `src/lib/sui.ts`, not always stored
+- Touching Move path/signal logic under `pay/contracts/sui/` — `schema/one.tql` and `text/dictionary.md` are the source of truth for names
+- Debugging why an on-chain absorb isn't writing to TypeDB — check the loaded schema accepts the attribute type
+- Writing a TQL `fun` that needs an on-chain twin — see `schema/sui.tql` for parallel function signatures
+- Querying `actor.wallet` values — they're derived from the Sui resolvers (`one.ie/web/src/lib/resolvers/sui.ts`), not always stored
 
 ---
 
 ## Production Patterns: Classifier Functions, Thing Collapse, Symmetric Routing
 
-These three patterns come from **`src/schema/world.tql`** — the ONE substrate's live runtime schema — and are worth learning because they turn abstract ideas ("Queries as Types", polymorphism, role interfaces) into code that's actually short, composable, and fast to query. Cross-reference: `packages/typedb-inference-patterns/` has the lesson-by-lesson version; this section is the distillation.
+These patterns come from **`schema/world.tql`** and are worth learning because they turn abstract ideas ("Queries as Types", polymorphism, role interfaces) into code that's actually short, composable, and fast to query.
+
+> **Read the code below for the *shape*, and never paste it.** Two corrections
+> that this section got wrong for a long time:
+>
+> 1. **`world.tql` is not the live runtime schema of the main database.** Per
+>    `schema/CLAUDE.md` it is the **brain schema for the standalone `api/`
+>    BrainDO database only** — it declares `task-value`/`task-effort` as strings
+>    where `one.tql` declares doubles, so co-loading the two fails on a
+>    value-type conflict. The main `one` database's canon is
+>    `one.tql` + `roles.tql` + `do.tql` + `reason.tql` + `router.tql` +
+>    `factory.tql` + `work-contract.tql` + `chat.tql`.
+> 2. **`world.tql` is written in `return first if … then … else …`, which the
+>    live 3.12.1 server rejects with `TQL0`** (VERIFIED table). It is therefore
+>    not deployable as written. `schema/reason.tql` carries the rewrite that
+>    *is* deployed. Below, every function is shown in the **deployable**
+>    disjunction form, with the `world.tql` original noted where it differs.
+>
+> Attribute names differ across the two too: `success-rate`, `sample-count` and
+> `activity-score` exist in `world.tql` and **not** in the live `one` database.
+> Check `GET /v1/databases/one/schema` before assuming an attribute is there.
 
 ### Pattern 1 — The Deterministic Sandwich as a Function Chain
 
-A **deterministic sandwich** wraps a probabilistic operation (usually an LLM call) in a pre-check and a post-check, so the indeterminism is bounded on both sides. In TypeQL 3.x, every slice of the sandwich is a **typed function** returning either `first true` (boolean pass) or a stream.
+A **deterministic sandwich** wraps a probabilistic operation (usually an LLM call) in a pre-check and a post-check, so the indeterminism is bounded on both sides. In TypeQL 3.x, every slice of the sandwich is a **typed function** returning either a bound boolean or a stream.
 
 ```typeql
-# src/schema/world.tql:536–567 — the sandwich, verbatim shape
+# schema/world.tql:586–614 — shape only; signatures corrected to `actor`
+# (world.tql says `actor`, an older draft of this skill said `unit`, a dead name)
 
 # PRE: Can this receiver handle this skill? (capability check)
-fun can_receive($u: unit, $sk: skill) -> boolean:
+fun can_receive($u: actor, $sk: skill) -> boolean:
     match (provider: $u, offered: $sk) isa capability;
-    return first true;
+    let $ok = true;
+    return first $ok;
 
 # PRE: Is the path to this receiver safe? (not toxic)
-fun is_safe($from: unit, $to: unit) -> boolean:
-    match (source: $from, target: $to) isa path,
-          has strength $s, has resistance $a;
-    return first if ($a > $s and $a >= 10.0) then false else true;
+fun is_safe($from: actor, $to: actor) -> boolean:
+    match
+        (source: $from, target: $to) isa path,
+            has strength $s, has resistance $r;
+        { $r > $s; $r >= 10.0;        let $ok = false; }
+        or { not { $r > $s; $r >= 10.0; }; let $ok = true; };
+    return first $ok;
 
 # PRE: Is the signal within budget?
-fun within_budget($u: unit, $sk: skill, $amount: double) -> boolean:
-    match (provider: $u, offered: $sk) isa capability, has price $p;
-    return first if ($amount >= $p) then true else false;
+fun within_budget($u: actor, $sk: skill, $amount: double) -> boolean:
+    match
+        (provider: $u, offered: $sk) isa capability, has price $p;
+        { $amount >= $p;   let $ok = true; }
+        or { $amount < $p; let $ok = false; };
+    return first $ok;
 
-# POST: Does the referenced unit still exist?
+# POST: Does the referenced actor still exist?
 fun unit_exists($uid: string) -> boolean:
     match $u isa actor, has aid $uid;
-    return first true;
-
-# POST: Is a unit performing well enough to trust its output?
-fun is_trustworthy($u: unit) -> boolean:
-    match $u has success-rate $sr, has sample-count $sc;
-    return first if ($sr >= 0.50 or $sc < 10) then true else false;
+    let $ok = true;
+    return first $ok;
 
 # COMPOSED: All the PRE checks as a single type assertion
-fun preflight($from: unit, $to: unit, $sk: skill) -> boolean:
-    match (provider: $to, offered: $sk) isa capability;
-          (source: $from, target: $to) isa path,
-          has strength $s, has resistance $a;
-    return first if ($a > $s and $a >= 10.0) then false else true;
+fun preflight($from: actor, $to: actor, $sk: skill) -> boolean:
+    match
+        (provider: $to, offered: $sk) isa capability;
+        (source: $from, target: $to) isa path,
+            has strength $s, has resistance $r;
+        { $r > $s; $r >= 10.0;        let $ok = false; }
+        or { not { $r > $s; $r >= 10.0; }; let $ok = true; };
+    return first $ok;
 ```
 
 **Why this is elegant:**
 
 1. **Each check is a type, not a subroutine.** `is_safe($from, $to)` declares the type "this path is safe". The planner decides whether to evaluate it by scanning strength/resistance, by checking an index, or by proving it vacuously. You never write "first look up strength, then compare".
 
-2. **`return first if ... then ... else ...`** is the TypeDB 3.x idiom for boolean classifiers. The body is a single conditional expression. No side effects, no cascading rules, no rule-firing order to debug.
+2. **An exhaustive disjunction binding one `let` per branch, closed by `return first $var`,** is the TypeDB 3.x idiom for boolean and string classifiers — there is no conditional expression in the language. Each branch after the first must negate the earlier ones, or a row matching two branches makes `return first` arbitrary.
 
-3. **Composition is just another function.** `preflight()` inlines the match patterns of its children rather than calling them — this lets the planner see the whole constraint set and pick the cheapest plan. (Calling three separate functions would force three sequential lookups.)
+3. **Composition is just another function.** `preflight()` inlines the match patterns of its children rather than calling them — this lets the planner see the whole constraint set and pick the cheapest plan. (Calling three separate functions would force three sequential lookups.) This is the same "inline the body" rule as *functions are for counts*.
 
-4. **Negative space stays declarative.** `is_trustworthy` returns `true` when `sr >= 0.50 OR sc < 10` — new agents are trusted by default because we have no evidence against them. That's a domain rule encoded as a type, not as a runtime `if`.
+4. **Negative space stays declarative.** A trust check that passes when `success-rate >= 0.50 OR sample-count < 10` trusts new agents by default, because there is no evidence against them. That's a domain rule encoded as a type, not as a runtime `if`. (`is_trustworthy` reads `success-rate`/`sample-count` — BrainDO-only attributes, so it is a `world.tql` function and has no counterpart in the main database.)
 
 ### Pattern 2 — The `thing` Collapse (Polymorphism as Entity-Level Union)
 
-Instead of modeling plan, cycle, task, and skill as four separate entities, the canonical ontology (`src/schema/one.tql:47–84`) **collapses them into one `thing` entity** discriminated by a `thing-type` attribute. Attributes specific to each kind (`task-status`, `cycles-planned`, `goal`) live on the shared entity, unused for non-matching kinds.
+Instead of modeling plan, cycle, task, and skill as four separate entities, the canonical ontology (`schema/one.tql:96+`) **collapses them into one `thing` entity** discriminated by a `thing-type` attribute. Attributes specific to each kind (`task-status`, `cycles-planned`, `goal`) live on the shared entity, unused for non-matching kinds.
 
 ```typeql
+# Abridged — schema/one.tql is the source, and it is much longer than this.
 entity thing,
     owns tid @key,
     owns name,
-    owns thing-type,                 # "skill" | "task" | "plan" | "service"
+    owns thing-type,     # skill|task|token|service|plan|step|corpus|
+                         # creative-asset|do-cycle|do-plan — see @values
     owns price,
     owns tag @card(0..),
     # Task-only (meaningful when thing-type='task')
-    owns task-status,                 # open/blocked/picked/done/verified/failed/dissolved
+    owns task-status,    # open/blocked/picked/done/verified/failed/dissolved
     owns task-effort,
     owns task-value,
     owns exit-condition,
+    # Workflow steps (meaningful when thing-type='step')
+    owns step-kind,      # trigger|tool|skill|agent|condition|human|delay|sell
+    owns step-config,
     # Plan-only (meaningful when thing-type='plan')
     owns goal,
     owns cycles-planned,
@@ -2092,6 +2408,11 @@ entity thing,
     plays production:produced;
 ```
 
+**Vocabulary law:** every `@values` enum lives in `one.tql` AND must be mirrored
+by a migration before prod writes rely on a new value. Adding a convention value
+in a doc or a `.ts` without widening the deployed `@values` means the write is
+rejected at the constraint (`schema/CLAUDE.md`).
+
 **When to use it:**
 
 - The concepts share >50% of their attributes and all their relations.
@@ -2112,44 +2433,41 @@ fun open_tasks() -> { thing } :
         $t isa thing, has thing-type "task", has task-status "open";
     return { $t };
 
-# Polymorphic priority: works across kinds because all own priority-score
+# Polymorphic priority: works across kinds because all own task-priority
 fun top_by_priority($kind: string) -> { thing } :
     match
-        $t isa thing, has thing-type $kind, has priority-score $p;
+        $t isa thing, has thing-type $kind, has task-priority $p;
     sort $p desc; limit 10;
     return { $t };
 ```
 
-Compare this with the maximalist `src/schema/world.tql` (787 lines, separate `task` entity with its own `task-id`, `task-status`, `priority-formula`, etc.). The **skinny ontology** (`one.tql`) uses the collapse for flexibility; the **runtime schema** (`world.tql`) uses separate entities for performance and strict typing. Both are valid — the choice depends on how much schema change you expect.
+Compare this with the maximalist `schema/world.tql` (844 lines, separate `task` entity with its own `task-id`, `task-status`, priority formula, etc.). The **skinny ontology** (`one.tql`, 480 lines) uses the collapse for flexibility; the **BrainDO schema** (`world.tql`) uses separate entities for performance and strict typing. Both are valid — the choice depends on how much schema change you expect. They cannot be loaded into the same database.
 
 ### Pattern 3 — Symmetric Routing via Shared-Variable Unification
 
 When you have a relation "X matches Y on tag", you usually need both directions — "what Y's match this X" AND "what X's match this Y". In SQL this is two separate queries. In TypeQL, both queries share the same match pattern; only the return changes.
 
 ```typeql
-# src/schema/world.tql:752–775 — verbatim symmetric pair
+# schema/world.tql:805–822 — verbatim symmetric pair.
+# Note every signature says `actor`, never `unit` (a dead name).
 
-# "What tasks can this unit work on?" (unit → tasks)
-fun tasks_for_unit($u: unit) -> { task } :
-    match
-        $u has tag $tag;
-        $t isa task, has tag $tag,
-            has done false, has task-status "open";
+# "What tasks can this actor work on?" (actor → tasks)
+fun tasks_for_unit($u: actor) -> { task }:
+    match $u has tag $tag;
+          $t isa task, has tag $tag, has done false, has task-status "open";
     return { $t };
 
-# "Which units can do this task?" (task → units)
-fun actors_for_task($t: task) -> { unit } :
-    match
-        $t has tag $tag;
-        $u isa actor, has tag $tag, has status "active";
+# "Which actors can do this task?" (task → actors)
+fun actors_for_task($t: task) -> { actor }:
+    match $t has tag $tag;
+          $u isa actor, has tag $tag, has status "active";
     return { $u };
 
-# "Best unit for this task": tag overlap × pheromone strength
-fun best_unit_for_task($t: task) -> unit :
-    match
-        $t has tag $tag;
-        $u isa actor, has tag $tag, has status "active";
-        (source: $any, target: $u) isa path, has strength $s;
+# "Best actor for this task": tag overlap × path strength
+fun best_unit_for_task($t: task) -> actor:
+    match $t has tag $tag;
+          $u isa actor, has tag $tag, has status "active";
+          (source: $any, target: $u) isa path, has strength $s;
     sort $s desc; limit 1;
     return $u;
 ```
@@ -2158,7 +2476,7 @@ fun best_unit_for_task($t: task) -> unit :
 
 - The `$tag` variable is shared between `$u has tag $tag` and `$t has tag $tag`. TypeQL **unifies** these — there must exist at least one tag value that both sides agree on. No `JOIN ON` clause, no foreign key; the type constraint IS the join.
 
-- The pattern is symmetric because the *type* of "unit-task matches on tag" doesn't care about direction. Only the *projection* (`return { $t }` vs `return { $u }`) picks a side.
+- The pattern is symmetric because the *type* of "actor-task matches on tag" doesn't care about direction. Only the *projection* (`return { $t }` vs `return { $u }`) picks a side.
 
 - `best_unit_for_task` composes the matching pattern with a *third* constraint (pheromone strength on an incoming path). Notice `(source: $any, target: $u)` — `$any` is bound but unconstrained; we don't care WHO marked the path, only that SOMEONE marked it. That's a free variable in the type.
 
@@ -2166,19 +2484,39 @@ fun best_unit_for_task($t: task) -> unit :
 
 One more worth lifting out. The substrate labels every path with one of five statuses using a single function whose body is a nested conditional:
 
+`schema/world.tql:570–577` writes it as an `if/then/else` cascade. **That form does
+not parse on the live server** — this is the deployed rewrite, and it is the
+single best worked example of translating a cascade into TypeQL:
+
 ```typeql
-# src/schema/world.tql:523–530
-fun path_status($e: path) -> string:
-    match $e has strength $s, has resistance $a, has traversals $t;
-    return first
-        if ($a > $s and $a >= 10.0)             then "toxic"
-        else if ($s >= 50.0)                    then "highway"
-        else if ($s >= 10.0 and $s < 50.0 and $t < 10) then "fresh"
-        else if ($s > 0.0 and $s < 5.0)         then "fading"
-        else "active";
+# schema/reason.tql:63–79 — the DEPLOYED five-branch classifier
+fun path_status($p: path) -> string:
+    match
+        $p has strength $s, has resistance $r, has traversals $t;
+        { $r > $s; $r >= 10.0;
+          let $status = "toxic"; }
+        or { $s >= 50.0; not { $r > $s; $r >= 10.0; };
+          let $status = "highway"; }
+        or { $s >= 10.0; $s < 50.0; $t < 10;
+             not { $r > $s; $r >= 10.0; };
+          let $status = "fresh"; }
+        or { $s > 0.0; $s < 5.0; not { $r > $s; $r >= 10.0; };
+          let $status = "fading"; }
+        or { not { $r > $s; $r >= 10.0; };
+             not { $s >= 50.0; };
+             not { $s >= 10.0; $s < 50.0; $t < 10; };
+             not { $s > 0.0; $s < 5.0; };
+          let $status = "active"; };
+    return first $status;
 ```
 
-The rules compose top-down — `toxic` wins over `highway` if both apply, `highway` wins over `fresh`. In 2.x this would be five chained `rule`s with priority annotations. In 3.x it's one function, and the cascade order is visible in the source. Debugging path status is now a single function call.
+The precedence that `else if` gave you for free — `toxic` beats `highway`,
+`highway` beats `fresh` — **you now write by hand** as a `not { … }` guard in
+every later branch. That verbosity is the whole cost of the missing conditional
+expression, and skipping a guard is a silent bug: a path matching two branches
+produces two rows and `return first` picks one arbitrarily. In 2.x this was five
+chained `rule`s with priority annotations; the cascade order is at least still
+visible in the source.
 
 **Adjacent pattern — reading the label:**
 
@@ -2190,11 +2528,34 @@ match
 select $p, $s;
 ```
 
-The result reads like English: "paths whose status is highway". The function is a verb (`path_status(p)`) that returns a type-tagged string. This is the L2 "quality rule" from `packages/typedb-inference-patterns/LOOPS.md` — classification without explicit rule firing.
+The result reads like English: "paths whose status is highway". The function is a verb (`path_status(p)`) that returns a type-tagged string — classification without explicit rule firing.
+
+This is also the boundary where **functions are for counts** bites. `path_status`
+returns a scalar, so calling it per row is what it is for. If instead you wanted
+*the paths and their strengths and their tags*, do not call a stream fun and then
+`has` the results — inline the fun's match body and select the attributes in one
+pipeline. The call form is what turns a sub-second query into a 10-second timeout.
 
 ---
 
 ## Project-Specific Patterns
+
+> **These examples are from a trading prototype, not from this repo.**
+> `signal-edge`, `live-prediction`, `edge-trail-level`, `win-count`,
+> `from-state-id`, `prediction-id` and friends exist in **no** `.tql` file here
+> and in **no** live database. `trail` is also a dead name (root `CLAUDE.md`).
+> They are kept as generic modelling shapes; for a real query against the ONE
+> substrate use `path` / `strength` / `resistance` / `traversals` and the
+> functions listed in `schema/CLAUDE.md`.
+>
+> **The read-modify-write examples below are the rejected pattern.** Writes take
+> **literals only** — `insert $e has strength ($s + 1)` and `insert $e has
+> strength $ns` (a value variable) both fail with `REP1 Attribute vs Value`, and
+> there is no in-database increment on this build. The shape that works is:
+> read the current value, compute it in the caller, write it back with
+> `update $e has strength 7.0;` (`update` is replace-or-add on `@card(0..1)` —
+> no delete needed). See `readPathWeights` / `updatePathWeights` in
+> `one.ie/web/src/lib/substrate.ts`.
 
 ### Signal-Edge Operations (Trading)
 
@@ -2230,15 +2591,12 @@ select $id, $level, $pnl;
 sort $pnl desc;
 limit 20;
 
-# Update edge statistics
-match
-    $e isa signal-edge, has edge-id "edge-001";
-    $e has win-count $old_wins;
-delete $old_wins;
-insert $e has win-count 15;
+# Update edge statistics — literal only, and `update` needs no delete
+match $e isa signal-edge, has edge-id "edge-001";
+update $e has win-count 15;
 ```
 
-### Pheromone Trail Patterns
+### Weighted-Path Patterns (prototype names — see the section note above)
 
 ```typeql
 # Deposit pheromone
@@ -2255,12 +2613,15 @@ select $id, $level;
 sort $level desc;
 limit 10;
 
-# Decay all pheromones by 10%
-match
-    $e isa signal-edge, has edge-trail-level $old;
-    let $new = $old * 0.9;
-delete $old;
-insert $e has edge-trail-level $new;
+# Decay by 10% — THERE IS NO IN-DATABASE FORM OF THIS.
+# `let $new = $old * 0.9; delete $old; insert $e has edge-trail-level $new;`
+# is REJECTED (REP1 Attribute vs Value): writes take literals only.
+# Step 1 — read the current values:
+match $e isa signal-edge, has edge-id $id, has edge-trail-level $old;
+select $id, $old;
+
+# Step 2 — multiply in the caller, then write one literal per row:
+#   update $e has edge-trail-level 22.95;
 ```
 
 ### Live Prediction Tracking
@@ -2307,15 +2668,13 @@ reduce $wins = count groupby $name;
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  TypeDB 3.0 Quick Reference                                 │
+│  TypeDB 3.12.1 Quick Reference                              │
 ├─────────────────────────────────────────────────────────────┤
-│  CONNECT                                                    │
-│  driver = TypeDB.driver(url, Credentials(u, p), Options)    │
-│                                                             │
-│  TRANSACTIONS (no sessions!)                                │
-│  with driver.transaction(db, TransactionType.READ) as tx:   │
-│      result = tx.query("...").resolve()                     │
-│      tx.commit()  # only for WRITE/SCHEMA                   │
+│  CONNECT (this repo: HTTP, no driver)                       │
+│  POST /v1/signin  -> token                                  │
+│  POST /v1/query   {query, databaseName,                     │
+│                    transactionType, commit}                 │
+│  GET  /v1/version · GET /v1/databases/one/schema            │
 │                                                             │
 │  TRANSACTION TYPES                                          │
 │  READ   - read only, concurrent                             │
@@ -2331,7 +2690,7 @@ reduce $wins = count groupby $name;
 │  integer (not long!), double, decimal, boolean              │
 │  string, date, datetime, datetime-tz, duration              │
 │                                                             │
-│  DELETE SYNTAX (3.0)                                        │
+│  DELETE SYNTAX (3.x)                                        │
 │  delete $attr;           # delete attribute                 │
 │  delete has $attr of $e; # delete ownership                 │
 │  delete $e;              # delete entity/relation           │
@@ -2358,10 +2717,20 @@ reduce $wins = count groupby $name;
 
 ### In-repo
 
-- `src/schema/one.tql` — canonical 6-dimension ontology (stable, 272 lines). See *Pattern 2 — The `thing` Collapse* for the polymorphic-union move it demonstrates.
-- `src/schema/world.tql` — live substrate schema (787 lines) with classifier functions, deterministic-sandwich pre/post-checks, symmetric-routing pair. Source for the *Production Patterns* section above.
-- `src/schema/sui.tql` — on-chain mirror of the same ontology. Proves the model bridges to a value-bearing substrate (Move). See the *Works With /sui* section above.
-- `packages/typedb-inference-patterns/` — lesson-by-lesson version of the 6 patterns that `world.tql` distills. The `standalone/*.tql` files are PRE-3.x (banner-marked); the `runtime/colony.ts` is 3.x-compliant; the README is the rule→fun translation guide.
+- **`schema/CLAUDE.md` — read this first.** It is the authority on which `.tql` files load, in what order, which must never co-load, the `@values` vocabulary law, and the codegen pipeline. It outranks this skill on all of that.
+- `schema/one.tql` (480 lines) — canonical 6-dimension ontology, locked. See *Pattern 2 — The `thing` Collapse*.
+- `schema/roles.tql` (184) — the authority walk: `self-or-ancestors-of` · `open-ancestors-of` · `controls` · `can` · `funding-of` · `brand-of`. All six are live in prod.
+- `schema/reason.tql` — inference layer, functions only. **The deployable `path_status`** and the recursive-closure examples (`reachable`, `strong-reach`, `route_exists`).
+- `schema/do.tql` — build-engine layer, functions only. `do_stage` is the reference disjunction classifier.
+- `schema/router.tql` (206) — universal signal router; `receivers-reachable-by` is live in prod.
+- `schema/factory.tql` (993) — the factory ladder. **One file is one schema transaction on purpose:** a fun may only reference *committed* funs (`REP4`), so a partial deploy breaks it. Prod carried 39 of 43 funs as of 2026-07-30; `next` + the cost trio ship in `migrations/0045_factory_next.tql` and are **not yet live** (confirmed absent 2026-08-02).
+- `schema/world.tql` (844 lines) — **standalone BrainDO schema, not the main database, and not deployable as written** (`if/then/else`). Source for *Production Patterns* above; read for shape only.
+- `schema/sui.tql` (475 lines) — Move mirror. Codegen input, never loaded.
+- `schema/migrations/` — 24 entries. Migration numbering is live through `0045`.
+- `one.ie/web/src/lib/substrate.ts` — how TypeScript actually queries: gateway → `POST /v1/query`. `readPathWeights` / `updatePathWeights` are the read-compute-write increment pattern.
+- `backup/scripts/typedb/dump.py` · `replay.py` — Python against `/v1/` via `urllib`, no driver. Also the source of the `(?![\w-])` role-matching fix and the `ensure_ascii=False` rule.
+- `.claude/scripts/typedb-env.sh` · `.claude/typedb/{dev,prod}.env` — the dev/prod switch and the version pin.
+- `.claude/scripts/typedb-probes/` — the 3.8.3 server-panic reproducers.
 - `.claude/skills/typedb/reference/research-notes-2026-04.md` — source notes behind this skill's 2026-04 refinement: PACMMOD paper, 3.0 roadmap, Vaticle lectures, "Inside TypeDB: The Next Chapter".
 - `.claude/skills/typedb/reference/migration-2x-3x.md` — mechanical 2.x→3.x translations (sessions, Concept API, rule→fun, long→integer, delete syntax).
 - `.claude/skills/typedb/reference/python-driver.md` — deeper Python-driver reference than the summary in this file.

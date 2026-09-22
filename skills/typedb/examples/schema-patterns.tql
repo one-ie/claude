@@ -1,5 +1,7 @@
-# TypeQL 3.0 Schema Patterns
-# Common schema design patterns for TypeDB 3.x
+# TypeQL Schema Patterns — TypeDB 3.12.1 (prod + local, 2026-07-29)
+# Generic teaching schema, NOT the ONE substrate. schema/one.tql is canon.
+# UNVERIFIED on 3.12.1 anywhere in this repo: struct, value string[], @index,
+# @cascade, @subkey — zero occurrences in schema/*.tql and in the live dump.
 
 # ============================================================================
 # BASIC ENTITY PATTERNS

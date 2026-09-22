@@ -1,14 +1,14 @@
 # /do --improve
 
-Loaded by `do.md` for `--improve` flag. Runs meta-improvement on do.md itself
-when drift signals accumulate.
+Invoked directly (`/do-improve`); `do.md` has no `--improve` row in Step 0.
+Runs meta-improvement on do.md itself when drift signals accumulate.
 
 ---
 
 ## Signal source (checks in order, first hit wins)
 
-1. `signals.jsonl` — read `loop:drift:*` entries if file exists
-2. `learnings.md` — read all `drift:` entries (polling fallback)
+1. `signals.jsonl` — read `loop:drift:*` entries if file exists (none on disk today)
+2. `text/learnings.md` — read all `drift:` entries (polling fallback)
 
 Group by wave+dim+tag_combo. For each group with count ≥ 2, run a one-cycle
 meta-improvement plan on `do.md`:

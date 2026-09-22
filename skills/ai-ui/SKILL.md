@@ -1,5 +1,5 @@
 ---
-name: ai-elements
+name: ai-ui
 description: Build advanced AI UIs with agent reasoning, tool visualization, generative UI components, and composable AI Elements for agentic interfaces
 ---
 

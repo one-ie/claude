@@ -1,0 +1,62 @@
+{
+  "name": "@oneie/claude",
+  "version": "0.10.1",
+  "description": "ONE Claude Code plugin — /do lifecycle, W0-W4 BUILD engine, 7-canon reconcile, ONE substrate via MCP, signals, and rules",
+  "files": [
+    ".claude-plugin",
+    ".mcp.json",
+    "channel",
+    "commands",
+    "agents",
+    "skills",
+    "rules",
+    "hooks",
+    "scripts",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@oneie/sdk": ">=0.3.0",
+    "@oneie/mcp": ">=0.3.0",
+    "@oneie/cli": ">=0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@oneie/sdk": {
+      "optional": true
+    },
+    "@oneie/mcp": {
+      "optional": true
+    },
+    "@oneie/cli": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "do",
+    "lifecycle",
+    "mcp",
+    "signals",
+    "typedb",
+    "agents",
+    "one"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/one-ie/claude.git"
+  },
+  "homepage": "https://github.com/one-ie/claude",
+  "devDependencies": {
+    "bun-types": "^1.3.14",
+    "typescript": "5.9.2"
+  }
+}

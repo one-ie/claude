@@ -1,7 +1,8 @@
 # /do --show mode
 
-Loaded by `do.md` when plan frontmatter has `show: true` or `--show` flag is passed.
-Default behavior for `/do <plan> --auto` on show-plans. The loop runs every cycle without
+Invoked directly (`/do-show`), or when a plan's frontmatter carries `show: true`.
+Note `do.md`'s Step 0 classify table does not route a `--show` flag.
+The loop runs every cycle without
 intervention; pauses at each cycle close to render a cycle frame. Press Ctrl-C to stop;
 otherwise auto-continues to the next cycle.
 
@@ -23,7 +24,8 @@ otherwise auto-continues to the next cycle.
 │                                                                   │
 │  Rubric                                                           │
 │  ───────                                                          │
-│    security {0.XX}  stability {0.XX}  simplicity {0.XX}  speed {0.XX} │
+│    security {0.XX}  stability {0.XX}  simplicity {0.XX}           │
+│    integration {0.XX}  speed {0.XX}                               │
 │    composite {0.XX}    ✓ above 0.65 gate                          │
 │                                                                   │
 │  Speed                                                            │
@@ -53,8 +55,8 @@ customer + agent through every stage the build now supports, in order.
 | Section | Source | Rule |
 |---|---|---|
 | Wave gates | telemetry from each wave's logger | one line per wave, ✓/✗ + one number; W2 also shows `⬇ Z new` (new primitives through compress check) |
-| Rubric | W4 markDims output | four numbers + composite + gate-pass |
-| Speed | `/api/speed` budgets for this cycle | only metrics this cycle changed |
+| Rubric | W4 markDims output | five numbers + composite + gate-pass |
+| Speed | the cycle's W4 speed axis (no `/api/speed` route exists) | only metrics this cycle changed |
 | What unlocks | plan's `lifecycle_show` frontmatter block | two sentences — customer + agent |
 | Lifecycle | plan's `lifecycle: [stages]` frontmatter | checkbox row, ✓ done / [ ] pending |
 | Next | next unchecked cycle + first task | one line; if last cycle, render lifecycle replay |

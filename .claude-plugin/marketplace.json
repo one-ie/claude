@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "oneie",
+  "description": "ONE — the /do build lifecycle and the ONE substrate, for Claude Code",
+  "owner": {
+    "name": "ONE",
+    "email": "tony@one.ie",
+    "url": "https://one.ie"
+  },
+  "plugins": [
+    {
+      "name": "oneie-claude",
+      "description": "ONE Claude Code harness — /do takes an idea to proven, shipped software through one lifecycle (AIM → PROMISE → SURVEY → DESIGN → PLAN → BUILD → TEST → VERIFY → PROVE → TEACH → SHIP → LEARN), plus direct access to the ONE substrate: 6 verbs, typed receivers, tasks, workflows and agents.",
+      "author": { "name": "ONE", "email": "tony@one.ie", "url": "https://one.ie" },
+      "category": "workflow",
+      "source": "./",
+      "homepage": "https://one.ie",
+      "license": "SEE LICENSE IN https://one.ie/free-license",
+      "keywords": ["do", "lifecycle", "signals", "typedb", "agents", "substrate", "one"]
+    }
+  ]
+}

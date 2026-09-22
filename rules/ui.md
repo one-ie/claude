@@ -35,8 +35,12 @@ Receiver naming: `ui:<surface>:<action>` where surface is the component or page 
 | `settings` | close, save, reset | `ui:settings:close`, `ui:settings:save` |
 | `memory` | reveal, forget, expand | `ui:memory:reveal`, `ui:memory:forget` |
 | `demo` | run, reset, next | `ui:demo:run`, `ui:demo:reset` |
+| `in:space` / `in:view` | the inbox axes — select, open | `ui:in:space:select`, `ui:in:view:open` |
+| `switcher` | group switching | `ui:switcher:open`, `ui:switcher:select` |
+| `members` | add, remove, delegate | `ui:members:add`, `ui:members:delegate` |
 
-Format: `ui:<surface>:<action>` — all lowercase, colon-delimited.
+Format: `ui:<surface>:<action>` — all lowercase, colon-delimited. A surface may
+nest (`in:space`), but the action is always the last segment.
 
 ---
 

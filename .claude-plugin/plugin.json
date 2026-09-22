@@ -1,0 +1,21 @@
+{
+  "name": "oneie-claude",
+  "version": "0.10.1",
+  "description": "ONE Claude Code harness — /do lifecycle, W1-W4 BUILD engine, signals, and rules for the ONE substrate",
+  "author": {
+    "name": "ONE",
+    "email": "tony@one.ie",
+    "url": "https://one.ie"
+  },
+  "homepage": "https://github.com/one-ie/claude",
+  "repository": "https://github.com/one-ie/claude",
+  "license": "SEE LICENSE IN https://one.ie/free-license",
+  "keywords": [
+    "do",
+    "lifecycle",
+    "signals",
+    "typedb",
+    "agents",
+    "one"
+  ]
+}

@@ -1,144 +1,165 @@
 # /release
 
-**Source of truth:** `one/release.md` · **Script:** `scripts/release.ts`
+Release the ONE OSS template and/or npm packages.
 
-Assemble `release/` from the monorepo, publish npm packages, and push to `github.com/one-ie/one`.
+**Template direction flipped 2026-07-23 — `apps/one/` is now the SINGLE SOURCE OF TRUTH.**
+Real development happens directly in the public clone; `one-ie/template/` is a read-only-by-
+convention **mirror** kept inside the monorepo so `packages/` and `/do` cycles can reference it
+without a second clone. Edit `apps/one` directly, then pull it back:
+**`apps/one/` → `one-ie/template/` (+ `apps/oo/site/`)**. There is deliberately **no**
+template → apps/one push path; the old direction would have destroyed apps/one-only work.
 
-## Modes
-
-| Invocation | What |
-|-----------|------|
-| `/release` | Stage + publish + push (full pipeline) |
-| `/release --stage` | Assemble `release/` only, no publish, no push |
-| `/release --push` | Stage + push to one-ie/one (skip npm publish) |
-| `/release --dry-run` | Print manifest, no writes |
-
-## The Three Packages
-
-| Package | npm name | Publish from | Depends on |
-|---------|----------|-------------|------------|
-| SDK | `@oneie/sdk` | `release/sdk` | — |
-| CLI | `oneie` | `packages/cli` | `@oneie/sdk` |
-| MCP | `@oneie/mcp` | `release/mcp` | `@oneie/sdk` |
-
-**Publish order:** SDK first, then CLI + MCP.
+**npm packages:** `packages/{sdk,react,mcp,cli}` → npm registry (a separate job — the release
+script does not publish; see Step 4)
 
 ---
 
-## Steps
+## Invocations
 
-### Step 1 — Stage (`bun run release`)
+| Command | What |
+|---|---|
+| `/release` | Full pipeline: template pull + npm packages |
+| `/release template` | Pull apps/one into the template mirror and commit in one-ie (no npm publish) |
+| `/release npm` | Bump + build + publish npm packages only |
+| `/release --dry-run` | Print what would happen, no writes |
 
-```bash
-bun run release          # assembles release/ from monorepo
-bun run release -- --dry-run  # preview only
-```
+---
 
-The script (`scripts/release.ts`) runs six sub-steps:
-
-| Sub-step | What |
-|----------|------|
-| `clean` | Wipe `release/` (preserve `.git`) |
-| `copy` | Run manifest: `agents/templates`, `packages/sdk`, `packages/mcp`, `.claude`, `templates/web` |
-| `one` | Copy `one/` docs filtered by public allowlist (strategy + in-flight work withheld) |
-| `overlay` | Apply `scripts/release-templates/` on top (README.md, CLAUDE.md, AGENTS.md overrides) |
-| `license` | Mirror root `LICENSE` into every slot |
-| `verify` | Assert 4-file convention: `README.md`, `CLAUDE.md`, `AGENTS.md`, `LICENSE` in root + each slot |
-
-**Slots:** `agents/` · `one/` · `sdk/` · `mcp/` · `.claude/` · `web/`
-
-**Key copies:**
-- `templates/web` → `release/web` (Astro + React template)
-- `packages/sdk` → `release/sdk`
-- `packages/mcp` → `release/mcp`
-- `.claude` → `release/.claude` (excl. `settings.local.json`)
-- `agents/templates` → `release/agents/templates` (real pods withheld)
-- `one/` → `release/one` (allowlist filtered)
-
-Report: files copied, bytes, ms per sub-step.
-
-### Step 2 — Version Bump
-
-Before publishing, sync versions. SDK must be bumped first:
-
-1. Bump `packages/sdk/package.json` version
-2. Update `packages/cli/package.json` `@oneie/sdk` dep to match
-3. Update `packages/mcp/package.json` `@oneie/sdk` dep to match  
-4. Bump CLI and MCP versions
-
-**CRITICAL:** `cd packages/sdk` before `npm version` — running from monorepo root triggers lockfile relock.
+## Step 1 — Preflight checks
 
 ```bash
-cd packages/sdk && npm version patch && cd ../..
-cd packages/cli && npm version patch && cd ../..
-cd packages/mcp && npm version patch && cd ../..
-```
+# Verify clean working tree
+git diff --exit-code && git diff --cached --exit-code || echo "WARN: uncommitted changes"
 
-Re-run `bun run release` after bumping so `release/sdk` and `release/mcp` reflect new versions.
+# Verify apps/one is cloned
+test -d /Users/toc/Server/apps/one/.git || {
+  echo "Clone first: git clone git@github.com:one-ie/one.git apps/one"
+  exit 1
+}
 
-### Step 3 — Build + Publish
+# Run strip guard — zero moat/do-engine source in the template's site/src/
+# (maintainer-only tooling lives in template-release/, a SIBLING of template/,
+#  and never ships in the published repo)
+cd one-ie/template-release && bash scripts/strip-guard.sh
 
-SDK must publish before CLI and MCP resolve it.
-
-```bash
-# SDK
-cd release/sdk && bun run build && npm publish --access public && cd ../..
-
-# CLI (publishes from packages/cli, not release/)
-cd packages/cli && npm run build && npm publish --access public && cd ../..
-
-# MCP
-cd release/mcp && bun run build && npm publish --access public && cd ../..
-```
-
-### Step 4 — Push to github.com/one-ie/one
-
-```bash
-bun run release -- --push
-```
-
-The `--push` flag (built into `scripts/release.ts`):
-1. `git init` inside `release/` if no `.git` (first time)
-2. `git remote add origin git@github.com:one-ie/one.git`
-3. `git add .`
-4. `git commit -m "release: v<version>"`
-5. `git push -u origin main`
-
-### Step 5 — Report
-
-```
-Stage:     clean 12ms  copy 340ms  one 28ms  overlay 5ms  license 2ms  verify 3ms
-           487 files, 4.2MB  total 390ms
-Publish:   @oneie/sdk@0.8.0 ✓  oneie@3.8.3 ✓  @oneie/mcp@0.2.0 ✓
-Push:      ✓ github.com/one-ie/one  commit: release: v0.8.0
+# Run test suite
+cd one-ie/template-release && bun vitest run
 ```
 
 ---
 
-## Manifest Reference (`scripts/release.ts`)
+## Step 2 — Pull apps/one into the template mirror
 
-```typescript
-const manifest = [
-  { from: 'agents/templates', to: 'agents/templates' },
-  { from: 'packages/sdk',    to: 'sdk',    exclude: ['node_modules', 'dist'] },
-  { from: 'packages/mcp',    to: 'mcp',    exclude: ['node_modules', 'dist'] },
-  { from: '.claude',         to: '.claude', exclude: ['settings.local.json'] },
-  { from: 'templates/web',   to: 'web',    exclude: ['node_modules', 'dist', '.astro'] },
-]
-// one/ is filtered separately by ONE_PUBLIC_DOCS allowlist
-// README.md + CLAUDE.md come from scripts/release-templates/ overlay (NOT monorepo root)
+```bash
+cd one-ie/template-release
+bash scripts/release.sh --message "release: $(date +%Y-%m-%d)"
+# flags: --dry-run | --no-push | --message "<note>"
 ```
+
+The script (`template-release/scripts/release.sh`):
+1. `rsync` apps/one/ → one-ie/template/ (excludes local-only / secret files)
+2. Sync per-package LICENSE files (`sync-licenses.sh`)
+3. `git commit` (+ push unless `--no-push`) **inside the one-ie monorepo — NOT apps/one.**
+   Nothing here writes to apps/one or to github.com/one-ie/one; that clone owns its own history.
+4. `rsync` apps/one/site/ → apps/oo/site/ (keeps the agency node current, if apps/oo exists)
+
+**Paid plugins are not stubbed by this script.** The 5 paid plugins backing `PAID_FEATURES`
+(`one.ie/web/src/lib/billing/gate.ts`) — `plugin-{admin,course,dashboard,premium,shop}` — live in
+`apps/one/packages/` and are mirrored into `template/packages/` unpublished. Their delivery
+mechanism is still undecided: `text/plugin-delivery-plan.md` § Scope correction.
+
+---
+
+## Step 3 — Bump npm package versions (if releasing npm)
+
+Bump order: SDK first, then react/mcp/cli which depend on it.
+
+```bash
+# Check current versions
+grep '"version"' packages/sdk/package.json packages/react/package.json packages/mcp/package.json packages/cli/package.json
+
+# Bump (patch | minor | major)
+cd packages/sdk   && npm version patch && cd ../..
+cd packages/react && npm version patch && cd ../..
+cd packages/mcp   && npm version patch && cd ../..
+cd packages/cli   && npm version patch && cd ../..
+
+# Sync workspace:* deps — update sdk version in react/mcp/cli package.json if pinning
+```
+
+**CRITICAL:** Run `npm version` from each package dir, not the monorepo root (triggers lockfile relock).
+
+---
+
+## Step 4 — Build + publish npm packages
+
+SDK must publish before react/mcp/cli (they declare `@oneie/sdk` as a dependency).
+
+```bash
+# Build all packages
+cd packages && bun run build && cd ..
+
+# Verify npm token is set
+npm whoami
+
+# Publish SDK first
+cd packages/sdk && npm publish --access public && cd ../..
+
+# Then react, mcp, cli (parallel is fine — SDK is already on registry)
+cd packages/react && npm publish --access public && cd ../..
+cd packages/mcp   && npm publish --access public && cd ../..
+cd packages/cli   && npm publish --access public && cd ../..
+```
+
+**Gotcha:** `workspace:*` deps must be temporarily pinned to `^x.y.z` before publishing, then restored. See memory entry `reference_oneie_npm_publish_workspace`.
+
+**The other npm packages have their own door.** `@oneie/design`, `@oneie/frontend`, and the 9
+free plugins (auth/backend/blog/booking/chat/docs/mail/media/track) publish per-package via
+`bash packages/publish-plugin.sh <plugin-dir-name> [--dry-run]` — it rewrites `workspace:*`
+peers to a loose optional `*` and restores `package.json` on exit. It **hard-refuses** the 5
+paid plugins unconditionally, even with `--dry-run`: public npm has no purchase gate. Do not
+remove that block to work around it.
+
+---
+
+## Step 5 — Tag + report
+
+```bash
+# Tag the release on main
+VERSION=$(node -p "require('./packages/sdk/package.json').version")
+git tag "v$VERSION" && git push origin "v$VERSION"
+```
+
+Report format:
+```
+Template:  strip-guard ✓  N/N tests ✓  pulled apps/one → template/  committed in one-ie
+npm:       @oneie/sdk@0.14.0 ✓  @oneie/react@0.14.0 ✓  @oneie/mcp@0.14.0 ✓  @oneie/cli@0.14.0 ✓
+Tag:       v0.14.0 → main
+```
+
+---
+
+## x402-gated plugins
+
+**Design, not shipped.** `release.sh` does not stub paid plugins and there is no `PAID_PLUGINS`
+array in it — the x402 delivery path (`pay.one.ie/x/<name>.js`) is the undecided half of
+`text/plugin-delivery-plan.md`. What IS enforced today is the refusal: `packages/publish-plugin.sh`
+blocks the 5 paid plugins from npm, and they ship to nobody until that plan lands.
+
+The paid set is defined in one place — `PAID_FEATURES` in `one.ie/web/src/lib/billing/gate.ts`,
+mirrored by the `PAID_PLUGINS` string in `packages/publish-plugin.sh`. Adding a paid plugin means
+editing both, not a release-script array.
 
 ---
 
 ## Gotchas
 
-- **Internal CLAUDE.md never ships** — it's 43KB of private dev context; the overlay provides a clean public version
-- **`one/` is default-deny** — only files in `ONE_PUBLIC_DOCS` allowlist ship; strategy/partnership docs stay private
-- **SDK publishes first** — CLI and MCP declare `@oneie/sdk` as dependency; registry must have it before they resolve
-- **`release/.git` persists** — `clean` step preserves `.git` so `release/` stays a live checkout of `one-ie/one`
-- **CLI publishes from `packages/cli`** — not `release/`; there's no `release/cli` slot
+- **`workspace:*` must be pinned before publish** — bun/npm won't rewrite it; pin → publish → restore
+- **npm token** — automation token stored in memory as `reference_npm_token` (expires 2026-08-26)
+- **SDK publishes first** — registry must have it before react/mcp/cli resolve it
+- **Paid plugin source never ships** — `strip-guard.sh` verifies this; if it fails, fix before publish
+- **`apps/one` is never written by `release.sh`** — it is the SSOT and owns its own history; the commit lands in the one-ie monorepo. Anything the mirror has that apps/one lacks must be moved by hand, deliberately.
 
 ---
 
-*Stage. Publish. Push. The release/ directory IS the one-ie/one repo. Three packages, one truth.*
+*apps/one is the source; the template mirrors it via rsync. Paid plugins ship to nobody yet. npm packages publish in dependency order.*

@@ -1,0 +1,435 @@
+#!/usr/bin/env bash
+# asi-walk.sh — the deterministic walk that brings an agent along the ASI
+# (Fetch.ai / Agentverse) lifecycle. Zero LLM. Numeric receipts. Closed loop.
+#
+# The lifecycle has two halves and they are NOT the same kind of check:
+#
+#   LOCAL   (default, no credentials)   authored → parses → compiles →
+#           imports resolve → protocols emitted → stamped
+#   REMOTE  (--remote, needs a key)     create → upload → secrets → start →
+#           poll → reachable
+#
+# The local half is the half that goes RED TODAY if a compiler regression
+# lands. It is the default for that reason. The remote half touches a third
+# party, so it is opt-in by flag AND gated on the key being present — it is
+# never attempted by default and never by --self-test.
+#
+# ── The three exit states ────────────────────────────────────────────────
+# A station that could not run is NOT a station that passed. Precedent:
+# pay/backend/src/chains/lightning.ts reports "unconfigured" rather than
+# fabricating a pass when LIGHTNING_API_KEY is unset. Same rule here.
+#
+#   0  every station that ran, passed
+#   1  a station RAN and FAILED
+#   3  a station COULD NOT RUN (no key, no network) — only with --strict,
+#      or always for --remote, because an unrun remote station aggregating
+#      into green is the exact lie this script exists to prevent.
+#
+# Usage:
+#   asi-walk.sh <agent.md|agent-dir>              # local stations
+#   asi-walk.sh <agent.md> --skills <dir>         # resolve skills from dir
+#   asi-walk.sh <agent.md> --remote               # + remote READ stations (needs key)
+#   asi-walk.sh <agent.md> --publish              # actually DEPLOY to Agentverse
+#
+# --remote is read-only: it proves the key is accepted and the API answers.
+# --publish is the only flag that mutates a third party, and it drives the real
+# `oneie agent publish --target agentverse` path rather than a reimplementation.
+#
+# AGENTVERSE_API_KEY is NOT the ASI:One key. Measured 2026-08-24: an ASI:One key
+# (api.asi1.ai) gets 401 "Could not validate credentials" from
+# agentverse.ai/v1/hosting. Two products, two credentials. Get an Agentverse key
+# from agentverse.ai → Profile → API Keys.
+#   asi-walk.sh <agent.md> --strict               # unrun local station ⇒ exit 3
+#   asi-walk.sh <agent.md> --json                 # machine-readable receipt
+#   asi-walk.sh --list                            # print stations, run nothing
+#   asi-walk.sh --self-test                       # prove each station can go RED
+#
+# Env:
+#   AGENTVERSE_API_KEY   required by --remote. Absent ⇒ every remote station
+#                        reports unconfigured (exit 3), never a pass.
+#   ASI_WALK_BASE        Agentverse API base (default https://agentverse.ai/v1)
+#   ONE_API_KEY          substrate key injected into a published agent
+#                        (legacy ONEIE_API_KEY also read, per resolveKey order)
+#   ANTHROPIC_API_KEY    the deployed agent's model credential. Absent is
+#                        reported, not invented — a published agent without it
+#                        dies on its first handled message.
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ASI_WALK_BASE="${ASI_WALK_BASE:-https://agentverse.ai/v1}"
+
+AGENT_PATH=""; SKILLS_DIR=""; DO_REMOTE=0; DO_PUBLISH=0; STRICT=0; JSON=0; LIST=0; SELFTEST=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skills) SKILLS_DIR="${2:-}"; shift 2 ;;
+    --remote) DO_REMOTE=1; shift ;;
+    --publish) DO_REMOTE=1; DO_PUBLISH=1; shift ;;
+    --strict) STRICT=1; shift ;;
+    --json)   JSON=1; shift ;;
+    --list)   LIST=1; shift ;;
+    --self-test) SELFTEST=1; shift ;;
+    -h|--help) sed -n '2,45p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -*) echo "asi-walk: unknown flag $1" >&2; exit 2 ;;
+    *) AGENT_PATH="$1"; shift ;;
+  esac
+done
+
+PASS=0; FAIL=0; UNRUN=0
+declare -a RECEIPTS=()
+
+# station <id> <title> — then the body runs; use ok/bad/unrun to close it.
+_station_id=""; _station_title=""
+station() { _station_id="$1"; _station_title="$2"; }
+ok()    { PASS=$((PASS+1));  RECEIPTS+=("$_station_id|pass|$_station_title|${1:-}");  printf '  \033[32mPASS\033[0m  %-22s %s\n' "$_station_id" "${1:-$_station_title}"; }
+bad()   { FAIL=$((FAIL+1));  RECEIPTS+=("$_station_id|fail|$_station_title|${1:-}");  printf '  \033[31mFAIL\033[0m  %-22s %s\n' "$_station_id" "${1:-$_station_title}"; }
+unrun() { UNRUN=$((UNRUN+1)); RECEIPTS+=("$_station_id|unrun|$_station_title|${1:-}"); printf '  \033[33mUNRUN\033[0m %-22s %s\n' "$_station_id" "${1:-$_station_title}"; }
+
+STATIONS_LOCAL=(
+  "parses|agent.md exists and frontmatter parses"
+  "name|frontmatter declares a name"
+  "compiles|compileAgent(target=uagents) emits Python"
+  "import-root|Model imported from the uagents ROOT, not uagents.models"
+  "agent-ctor|emitted Python constructs Agent(...)"
+  "protocols|skills resolve to Protocol/on_message handlers"
+  "stamp|Generated by ONE stamp present"
+  "model-cred|ANTHROPIC_API_KEY available for the deployed agent"
+  "substrate-cred|ONE/ONEIE key available to inject"
+)
+STATIONS_REMOTE=(
+  "av-key|AGENTVERSE_API_KEY present"
+  "av-reach|Agentverse API reachable AND the key is accepted"
+  "av-publish|oneie agent publish --target agentverse (needs --publish)"
+  "av-poll|GET /hosting/agents/{addr} reports compiled"
+)
+
+if [[ $LIST -eq 1 ]]; then
+  echo "LOCAL stations (default):"
+  for s in "${STATIONS_LOCAL[@]}"; do printf '  %-16s %s\n' "${s%%|*}" "${s#*|}"; done
+  echo "REMOTE stations (--remote, needs AGENTVERSE_API_KEY):"
+  for s in "${STATIONS_REMOTE[@]}"; do printf '  %-16s %s\n' "${s%%|*}" "${s#*|}"; done
+  exit 0
+fi
+
+# ── resolve the agent file ───────────────────────────────────────────────
+resolve_agent() {
+  local p="$1"
+  [[ -z "$p" ]] && return 1
+  if [[ -d "$p" ]]; then
+    for cand in "$p/agent.md" "$p/$(basename "$p").md"; do
+      [[ -f "$cand" ]] && { echo "$cand"; return 0; }
+    done
+    local first; first="$(find "$p" -maxdepth 1 -name '*.md' | head -1)"
+    [[ -n "$first" ]] && { echo "$first"; return 0; }
+    return 1
+  fi
+  [[ -f "$p" ]] && { echo "$p"; return 0; }
+  return 1
+}
+
+# compile_out <agent.md> <skills-dir-or-empty> — prints emitted Python, or
+# prints nothing and returns non-zero. Uses the REAL SDK compiler, never a
+# reimplementation: this station must break when the compiler breaks.
+#
+# ── why this retries, and why stderr is kept ─────────────────────────────
+# This swallowed stderr with 2>/dev/null. A transient compiler failure (cold
+# module cache, a saturated box) then looked BYTE-IDENTICAL to "this agent has
+# nothing to compile": empty stdout either way. Measured: the first run of an
+# agent reported pass=6 unrun=3 where five consecutive warm runs reported
+# pass=7 unrun=2 — the same agent, two different verdicts, cache warmth the only
+# variable. A walk whose answer depends on cache warmth is not deterministic,
+# which is the one property this script exists to have.
+# Retry once on empty output, and keep stderr so a real failure can be NAMED
+# instead of silently degrading into an unrun station.
+COMPILE_ERR=""
+compile_out() {
+  local md="$1" skills="$2" out="" err_file
+  md="$(cd "$(dirname "$md")" && pwd)/$(basename "$md")"
+  [[ -n "$skills" && -d "$skills" ]] && skills="$(cd "$skills" && pwd)"
+  err_file="$(mktemp)"
+  for attempt in 1 2; do
+    out="$(_compile_once "$md" "$skills" 2>"$err_file")"
+    [[ -n "$out" ]] && break
+  done
+  COMPILE_ERR="$(head -c 400 "$err_file" | tr '\n' ' ')"
+  rm -f "$err_file"
+  printf '%s' "$out"
+  [[ -n "$out" ]]
+}
+
+_compile_once() {
+  local md="$1" skills="$2"
+  # ABSOLUTE paths: `bun --cwd` moves the working directory to packages/sdk, so a
+  # relative agent path resolves against the wrong root and reads ENOENT — which
+  # the caller would otherwise report as the compiler emitting nothing.
+  ONE_ASI_MD="$md" ONE_ASI_SKILLS="$skills" bun --cwd "$REPO_ROOT/packages/sdk" - <<'TS'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join, basename } from 'node:path'
+import { compileAgent } from './src/compile'
+const md = readFileSync(process.env.ONE_ASI_MD!, 'utf8')
+const dir = process.env.ONE_ASI_SKILLS || ''
+const skills: Record<string, string> = {}
+// Two shapes in this tree: a flat `<dir>/<name>.md`, and the shared pool's
+// `<dir>/<name>/SKILL.md` (one.ie/ai/skills and .claude/skills both use the
+// second). Reading only the flat form silently resolves ZERO skills against the
+// real pool, which then reads as "skills never reached the compiler".
+// Never branch on the dirent TYPE. `withFileTypes` reports a symlinked
+// directory as isSymbolicLink(), not isDirectory(), so an --skills dir built
+// from symlinks (the only way to span both pools) resolved ZERO skills and every
+// agent read as "skills never reached the compiler". Probe the PATHS instead —
+// existsSync follows links, so all three shapes resolve the same way.
+if (dir && existsSync(dir)) {
+  for (const name of readdirSync(dir)) {
+    if (name.endsWith('.md')) {
+      const flat = join(dir, name)
+      if (existsSync(flat)) skills[basename(name, '.md')] = readFileSync(flat, 'utf8')
+      continue
+    }
+    for (const inner of ['SKILL.md', `${name}.md`]) {
+      const p = join(dir, name, inner)
+      if (existsSync(p)) { skills[name] = readFileSync(p, 'utf8'); break }
+    }
+  }
+}
+process.stdout.write(compileAgent(md, { target: 'uagents', skills }))
+TS
+}
+
+run_local() {
+  local md="$1" skills="$2"
+
+  station parses "agent.md exists and frontmatter parses"
+  if [[ ! -f "$md" ]]; then bad "no such file: $md"; return; fi
+  if ! head -1 "$md" | grep -q '^---'; then bad "no YAML frontmatter fence at line 1"; else ok "$md"; fi
+
+  station name "frontmatter declares a name"
+  local nm; nm="$(sed -n '2,40p' "$md" | grep -m1 '^name:' | sed 's/^name:[[:space:]]*//')"
+  if [[ -n "$nm" ]]; then ok "name=$nm"; else bad "no name: in frontmatter"; fi
+
+  station compiles "compileAgent(target=uagents) emits Python"
+  local out; out="$(compile_out "$md" "$skills")"
+  if [[ -z "$out" ]]; then
+    # Name the cause. "produced nothing" with the reason hidden is what let a
+    # transient failure masquerade as an agent with nothing to compile.
+    bad "compiler produced nothing after 2 attempts${COMPILE_ERR:+ — stderr: $COMPILE_ERR}";
+    for s in import-root agent-ctor protocols stamp; do
+      station "$s" "skipped — nothing compiled"; unrun "no compiler output to assert on"
+    done
+  else
+    ok "$(wc -l <<<"$out" | tr -d ' ') lines of Python"
+
+    # The D10 regression guard. uagents/models.py does not exist upstream
+    # (404); Model is re-exported from the package root. A wrong path here is
+    # an ImportError at agent startup, which no local typecheck can see.
+    station import-root "Model imported from the uagents ROOT"
+    if grep -q 'from uagents\.models import' <<<"$out"; then
+      bad "emits 'from uagents.models import' — that module does not exist upstream"
+    elif grep -qE '^from uagents import .*\bModel\b' <<<"$out"; then
+      ok "from uagents import ... Model"
+    # Match Model as a PYTHON SYMBOL only — `class X(Model)` / `: Model`. The
+    # emitted file embeds the agent's markdown prompt as a string, and that prose
+    # says things like "## Model · Effort dial"; a bare \bModel\b grep matches the
+    # documentation and reports a NameError that does not exist.
+    elif grep -qE '\(Model\)|:[[:space:]]*Model\b' <<<"$out"; then
+      bad "uses Model as a symbol but never imports it from the root (NameError at runtime)"
+    else
+      unrun "this agent emits no Model symbol (no skills, no endpoints)"
+    fi
+
+    station agent-ctor "emitted Python constructs Agent(...)"
+    if grep -qE '(^|[^A-Za-z_])Agent\(' <<<"$out"; then ok; else bad "no Agent( constructor emitted"; fi
+
+    # D8 guard: with no skills map, hasSkills is false and NO protocol handlers
+    # are emitted — every deploy shipped a shell.
+    #
+    # Read the AGENT'S OWN declaration first. An agent that declares no skills
+    # (absent, or `skills: []` — 28 of 116 in this tree) correctly emits no
+    # handler, and calling that a failure blamed 28 healthy agents for a
+    # property they never claimed. Only a DECLARED-but-unresolved skill is a
+    # defect: that is a dangling ref, and it publishes a silent shell.
+    station protocols "declared skills resolve to Protocol/on_message handlers"
+    local decl; decl="$(sed -n '2,40p' "$md" | grep -m1 '^skills:' | sed 's/^skills:[[:space:]]*//')"
+    local n_handlers; n_handlers="$(grep -c 'on_message' <<<"$out")"
+    if [[ -z "$decl" || "$decl" == "[]" ]]; then
+      unrun "agent declares no skills — no protocol expected"
+    elif [[ -z "$skills" ]]; then
+      unrun "declares skills ($decl) but no --skills dir given; cannot resolve"
+    elif [[ "$n_handlers" -gt 0 ]]; then
+      ok "$n_handlers on_message handler(s) from: $decl"
+    else
+      bad "declares skills ($decl) but NONE resolved — dangling ref, would publish a handler-less agent"
+    fi
+
+    station stamp "Generated by ONE stamp present"
+    if grep -q 'Generated by ONE' <<<"$out"; then ok; else bad "no ONE attribution in emitted code"; fi
+  fi
+
+  # Credentials the PUBLISHED agent needs. Reported, never invented. An agent
+  # that deploys without a model credential dies on its first handled message.
+  station model-cred "ANTHROPIC_API_KEY available for the deployed agent"
+  if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then ok "present in env (value never printed)"
+  else unrun "unset — a published agent would fail on its first message"; fi
+
+  station substrate-cred "ONE/ONEIE key available to inject"
+  if [[ -n "${ONE_API_KEY:-}" ]]; then ok "ONE_API_KEY present"
+  elif [[ -n "${ONEIE_API_KEY:-}" ]]; then ok "ONEIE_API_KEY (legacy) present"
+  else unrun "neither ONE_API_KEY nor ONEIE_API_KEY set"; fi
+}
+
+run_remote() {
+  station av-key "AGENTVERSE_API_KEY present"
+  if [[ -z "${AGENTVERSE_API_KEY:-}" ]]; then
+    unrun "unset — refusing to guess; remote stations cannot run. NOTE: this is NOT the ASI:One key; get one from agentverse.ai → Profile → API Keys"
+    for s in av-reach av-publish av-poll; do
+      station "$s" "gated on AGENTVERSE_API_KEY"; unrun "no credential"
+    done
+    return
+  fi
+  ok "present (value never printed)"
+
+  station av-reach "Agentverse API reachable"
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' -m 15 \
+          -H "Authorization: Bearer ${AGENTVERSE_API_KEY}" \
+          "$ASI_WALK_BASE/hosting/agents" 2>/dev/null)"
+  if [[ "$code" == "200" ]]; then ok "GET /hosting/agents → 200"
+  elif [[ -z "$code" || "$code" == "000" ]]; then
+    unrun "no network / no response from $ASI_WALK_BASE"
+    for s in av-publish av-poll; do
+      station "$s" "unreachable"; unrun "API did not respond"
+    done
+    return
+  elif [[ "$code" == "401" || "$code" == "403" ]]; then
+    # A key that is PRESENT but REJECTED is the failure the av-key station
+    # cannot see. Measured 2026-08-24: the ASI:One key (api.asi1.ai) returns
+    # 401 "Could not validate credentials" here — Agentverse hosting is a
+    # SEPARATE credential from the ASI:One LLM key. Distinguish the two 401s:
+    # no credential answers "Not authenticated"; a rejected Bearer answers
+    # "Could not validate credentials".
+    bad "GET /hosting/agents → $code (key present but REJECTED — an ASI:One key is not an Agentverse key)"
+    for s in av-publish av-poll; do station "$s" "gated on a valid credential"; unrun "credential rejected"; done
+    return
+  else bad "GET /hosting/agents → $code"; fi
+
+  # ── the write half ──────────────────────────────────────────────────────
+  # This CREATES a live hosted agent on a third party, so it needs its own
+  # opt-in: --remote alone stays read-only (key + reachability). --publish arms
+  # it. Read-only at every level by default.
+  #
+  # It invokes the REAL CLI publish path, never a reimplementation. A walk that
+  # POSTs its own create/upload/start sequence would prove a code path nobody
+  # ships; `oneie agent publish --target agentverse` is the door production
+  # uses, so that is the door this station opens.
+  station av-publish "oneie agent publish --target agentverse"
+  if [[ $DO_PUBLISH -ne 1 ]]; then
+    unrun "not armed — pass --publish to actually deploy (it creates a live agent)"
+    station av-poll "GET /hosting/agents/{addr} reports compiled"; unrun "nothing published"
+    return
+  fi
+
+  # Run the LOCAL CLI source, never `bunx oneie` — bunx resolves the PUBLISHED
+  # npm package, which lags this tree. Measured: it errored `unknown option
+  # '--skills'` because that flag exists only locally, so the walk was testing a
+  # different CLI than the one being developed. `bun run <src>` pins it to HEAD.
+  local pub rc addr cli="$REPO_ROOT/packages/cli/src/index.ts"
+  if [[ ! -f "$cli" ]]; then
+    bad "local CLI source not found at $cli"
+    station av-poll "GET /hosting/agents/{addr} reports compiled"; unrun "no CLI to run"
+    return
+  fi
+  pub="$(cd "$REPO_ROOT" && AGENTVERSE_API_KEY="$AGENTVERSE_API_KEY" \
+        bun "$cli" agent publish "$MD" --target agentverse \
+        ${SKILLS_DIR:+--skills "$SKILLS_DIR"} 2>&1)"; rc=$?
+  addr="$(grep -oE 'agent1[a-z0-9]{20,}' <<<"$pub" | head -1)"
+  if [[ $rc -ne 0 ]]; then
+    bad "publish exited $rc: $(head -c 300 <<<"$pub" | tr '\n' ' ')"
+    station av-poll "GET /hosting/agents/{addr} reports compiled"; unrun "publish failed"
+    return
+  fi
+  if [[ -z "$addr" ]]; then
+    bad "publish reported ok but returned no agent address: $(head -c 200 <<<"$pub" | tr '\n' ' ')"
+    station av-poll "GET /hosting/agents/{addr} reports compiled"; unrun "no address to poll"
+    return
+  fi
+  ok "published → $addr"
+
+  station av-poll "GET /hosting/agents/{addr} reports compiled"
+  local body compiled
+  body="$(curl -s -m 20 -H "Authorization: Bearer ${AGENTVERSE_API_KEY}" \
+          "$ASI_WALK_BASE/hosting/agents/$addr" 2>/dev/null)"
+  compiled="$(grep -o '"compiled":[a-z]*' <<<"$body" | cut -d: -f2)"
+  if [[ "$compiled" == "true" ]]; then ok "compiled=true, running on Agentverse"
+  elif [[ "$compiled" == "false" ]]; then bad "compiled=false — deployed but will not run"
+  else unrun "could not read compiled from the status body"; fi
+}
+
+self_test() {
+  echo "asi-walk --self-test: proving each local station can go RED"
+  local tmp; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+  local rc red=0 total=0
+
+  # 1. missing file must fail
+  total=$((total+1))
+  "${BASH_SOURCE[0]}" "$tmp/nope.md" >/dev/null 2>&1; rc=$?
+  if [[ $rc -ne 0 ]]; then red=$((red+1)); echo "  ok   missing-file reds (exit $rc)"; else echo "  BAD  missing-file passed"; fi
+
+  # 2. no frontmatter must fail
+  total=$((total+1))
+  printf 'no frontmatter here\n' > "$tmp/bare.md"
+  "${BASH_SOURCE[0]}" "$tmp/bare.md" >/dev/null 2>&1; rc=$?
+  if [[ $rc -ne 0 ]]; then red=$((red+1)); echo "  ok   no-frontmatter reds (exit $rc)"; else echo "  BAD  no-frontmatter passed"; fi
+
+  # 3. frontmatter without a name must fail
+  total=$((total+1))
+  printf -- '---\ndescription: x\n---\nbody\n' > "$tmp/noname.md"
+  "${BASH_SOURCE[0]}" "$tmp/noname.md" >/dev/null 2>&1; rc=$?
+  if [[ $rc -ne 0 ]]; then red=$((red+1)); echo "  ok   no-name reds (exit $rc)"; else echo "  BAD  no-name passed"; fi
+
+  # 4. --remote with no key must NOT report green (exit 3, never 0)
+  total=$((total+1))
+  printf -- '---\nname: t\n---\nbody\n' > "$tmp/ok.md"
+  ( unset AGENTVERSE_API_KEY; "${BASH_SOURCE[0]}" "$tmp/ok.md" --remote >/dev/null 2>&1 ); rc=$?
+  if [[ $rc -eq 3 ]]; then red=$((red+1)); echo "  ok   --remote with no key exits 3 (unconfigured, not green)"
+  else echo "  BAD  --remote with no key exited $rc (expected 3)"; fi
+
+  echo "self-test: $red/$total station guards proved falsifiable"
+  [[ $red -eq $total ]] || return 1
+  return 0
+}
+
+# ── main ─────────────────────────────────────────────────────────────────
+if [[ $SELFTEST -eq 1 ]]; then self_test; exit $?; fi
+
+MD="$(resolve_agent "$AGENT_PATH")" || { echo "asi-walk: no agent .md at '${AGENT_PATH:-<missing>}'" >&2; exit 2; }
+
+# A sibling skills/ dir next to the agent is the convention resolveSkillMds
+# uses; adopt it so the protocols station has something real to assert on.
+if [[ -z "$SKILLS_DIR" && -d "$(dirname "$MD")/skills" ]]; then SKILLS_DIR="$(dirname "$MD")/skills"; fi
+
+echo "asi-walk — ASI (Fetch.ai/Agentverse) lifecycle"
+echo "  agent:  $MD"
+echo "  skills: ${SKILLS_DIR:-<none>}"
+echo "  remote: $([[ $DO_REMOTE -eq 1 ]] && echo yes || echo 'no (local stations only)')"
+echo
+echo "LOCAL"
+run_local "$MD" "$SKILLS_DIR"
+if [[ $DO_REMOTE -eq 1 ]]; then echo; echo "REMOTE"; run_remote; fi
+
+echo
+echo "asi-walk: pass=$PASS fail=$FAIL unrun=$UNRUN"
+
+if [[ $JSON -eq 1 ]]; then
+  printf '{"pass":%d,"fail":%d,"unrun":%d,"stations":[' "$PASS" "$FAIL" "$UNRUN"
+  for i in "${!RECEIPTS[@]}"; do
+    IFS='|' read -r id st title note <<<"${RECEIPTS[$i]}"
+    [[ $i -gt 0 ]] && printf ','
+    printf '{"id":"%s","state":"%s","title":"%s","note":"%s"}' "$id" "$st" "$title" "${note//\"/\\\"}"
+  done
+  printf ']}\n'
+fi
+
+# A failure always wins. An unrun station is exit 3 under --strict, and ALWAYS
+# exit 3 when --remote was asked for: "I could not check" must never be read as
+# "it works".
+[[ $FAIL -gt 0 ]] && exit 1
+if [[ $UNRUN -gt 0 ]] && { [[ $STRICT -eq 1 ]] || [[ $DO_REMOTE -eq 1 ]]; }; then exit 3; fi
+exit 0

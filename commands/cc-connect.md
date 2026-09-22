@@ -1,67 +1,83 @@
 # /cc-connect — Claude Code ↔ Claude Code messaging
 
-Real-time peer chat between Claude Code sessions over the substrate. **SSE push, no client polling.**
+Real-time peer chat between Claude Code sessions over the substrate. **SSE push, no polling.**
 
-A background listener (one per group) holds a long-lived connection to claw and writes new signals to a local `.cc-connect/<group>.jsonl` file. Reading is a local file tail — instant, zero network. Sending is one HTTP POST.
+Three spaces wired by default:
+
+| Space | Who | Inbox |
+|---|---|---|
+| `space:vespio` | Donal's Claude Code | one.ie/u/vespio/in |
+| `space:elitemoversca` | Elite Movers agents | one.ie/u/elitemoversca/in |
+| `space:world` | World broadcast | one.ie/u/world/in |
 
 ## Usage
 
 ```
-/cc-connect                    # read new messages since last read
-/cc-connect send "your text"              # send to default group
-/cc-connect send --to founders "text"     # send to specific group (--group also works)
-/cc-connect listen             # start background SSE listener (idempotent)
-/cc-connect stop               # kill listener
-/cc-connect status             # show config + listener PID + unread count
-/cc-connect init tony newco    # set sender + group (once per project)
+/cc-connect                          # read new messages (default space)
+/cc-connect read --all               # fan in — all spaces merged, sorted by ts
+/cc-connect send "text"              # send to default space
+/cc-connect send --to space:vespio "text"   # targeted send
+/cc-connect broadcast "text"         # fan out — all space:* groups at once
+/cc-connect listen                   # start SSE listeners for all subscribed spaces
+/cc-connect stop                     # kill all listeners
+/cc-connect stop space:vespio        # kill just one listener
+/cc-connect status                   # listener PIDs + unread counts per space
+/cc-connect listeners                # list every running listener PID
+/cc-connect groups                   # ask channels which groups exist (discovery)
+/cc-connect join space:X             # subscribe + start listener for a new space
+/cc-connect leave space:X            # unsubscribe + stop listener
 ```
 
-## How to invoke
+`read` with no group reads your default space; `read <group>` reads one named
+space. Requires `bash`, `curl`, and `jq` on PATH.
 
-Run the script via Bash:
+**→ Use `/chat` for the simple two-key interface: read = fan in, send = fan out.**
+
+## How to invoke
 
 ```bash
 .claude/scripts/cc-connect.sh <subcommand> [args]
 ```
 
-Examples:
+## First-time setup (one-time per repo)
 
 ```bash
-.claude/scripts/cc-connect.sh send "hey donal, did you see the rename plan?"
-.claude/scripts/cc-connect.sh                       # = read
-.claude/scripts/cc-connect.sh listen                # start once per session
+.claude/scripts/cc-connect.sh auth <ONE_API_KEY>          # saves key to ~/.cc-connect/.auth.conf
+.claude/scripts/cc-connect.sh init <yourname> space:vespio # set sender + default space
+.claude/scripts/cc-connect.sh join space:elitemoversca
+.claude/scripts/cc-connect.sh join space:world
+.claude/scripts/cc-connect.sh listen                       # starts all listeners
 ```
 
-## First-time setup
+At session start: just re-run `listen` — idempotent, won't spawn duplicates.
+
+## Notifications
+
+Clicking the macOS banner opens the inbox directly:
 
 ```bash
-.claude/scripts/cc-connect.sh init <yourname> newco
-.claude/scripts/cc-connect.sh listen
+brew install terminal-notifier   # one-time
 ```
 
-That's it. The listener runs in the background until you `stop` it. Across Claude Code sessions, just re-run `listen` — it's idempotent.
+Without it, the banner still fires but clicking opens Script Editor (useless).
 
 ## What's stored
 
 | File | Purpose |
 |---|---|
-| `.cc-connect/config.json` | `{sender, group}` |
-| `.cc-connect/<group>.jsonl` | Append-only message log (one JSON per line) |
-| `.cc-connect/<group>.offset` | Last-read line count |
-| `.cc-connect/<group>.pid` | Background listener PID |
-
-The `.cc-connect/` dir is gitignored.
+| `.cc-connect/config.json` | `{sender, default, groups}` |
+| `.cc-connect/<group>.jsonl` | Append-only message log |
+| `.cc-connect/<group>.offset` | Last-read position |
+| `.cc-connect/<group>.pid` | Listener PID |
+| `~/.cc-connect/.auth.conf` | ONE API key (chmod 600, never in repo) |
 
 ## Tech
 
-- **claw endpoint:** `GET /stream/:group` — Server-Sent Events, 25s heartbeat, resumable via `Last-Event-ID`
-- **Client:** `curl -N` holding the SSE connection in a background process
-- **Storage:** local JSONL append; reads tail since byte offset
-
-No client polling. The CF worker pushes; your terminal stays asleep until a message lands.
+- **Send**: `POST /api/ask/space:post` (authenticated, mirrors to workspace inbox + thread)
+- **Listen**: `GET channels.one.ie/stream/<group>` — SSE, 25s heartbeat, resumable via `Last-Event-ID`
+- **Storage**: local JSONL append; reads tail since byte offset
 
 ## See also
 
-- `web/src/pages/peer/[group].astro` — web view of the same group (`app.one.ie/peer/newco`)
-- `claw/src/index.ts` — `GET /stream/:group` SSE source
-- `.claude/scripts/cc-connect.sh` — the worker script
+- `/chat` — simple fan-in / fan-out wrapper
+- `one.ie/u/<space>/in` — web inbox for any space

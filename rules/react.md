@@ -114,16 +114,16 @@ export default function AgentCard() { ... }
 ## With Substrate
 
 ```tsx
-import { colony } from '@/engine/substrate'
+import { createWorld } from '@/lib/pheromone'
 
 export function SwarmView() {
-  const [net] = useState(() => colony())
+  const [net] = useState(() => createWorld())
   const [highways, setHighways] = useState([])
 
   useEffect(() => {
     const interval = setInterval(() => {
       net.fade(0.1)
-      setHighways(net.highways(10))
+      setHighways(net.highways(undefined, 10))
     }, 1000)
     return () => clearInterval(interval)
   }, [net])

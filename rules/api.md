@@ -45,6 +45,15 @@ The `>` separator works as a fallback to `→`. Always pass `{ strength }` in th
 
 Active state (saved, archived, completed) belongs on the pheromone path, not in `localStorage`. Poll `/api/export/highways?from=source&limit=200` and classify by strength/resistance thresholds. This keeps state honest across devices.
 
+## Authorize off the context, never the body
+
+Scope every read and write to `ctx.ownerSlug`. A `slug`, `actorId`, `gid`, or
+`workspace` arriving in the request body or query string is **caller-supplied
+input, not identity** — trusting one is an IDOR, and this family has had ~80 of
+them fixed. A `?slug=` route must call `authorizeWorkspace` before it touches
+data. Ownership questions resolve by the authority walk (`schema/roles.tql`),
+not by comparing a body field to anything.
+
 ## No stubs
 
 Do not create a no-op endpoint (one that always returns `[]` or `{ok:true}`) as a placeholder. If the backend isn't ready, the caller handles the empty response from `signal`/`ask`.

@@ -19,8 +19,8 @@ default palette so wrong colors emit no CSS. Don't fight the enforcement.
 
 | Token | Use for |
 | --- | --- |
-| `background` | Card surfaces, sidebars, page-level panels |
-| `foreground` | Inner content rectangles inside cards |
+| `background` | Page canvas — the primary working surface, behind cards and sidebar |
+| `foreground` | Cards, sidebar, elevated panels — surfaces that float above the canvas |
 | `font` | All body text |
 | `primary` | Main CTAs, brand accents, focus rings |
 | `secondary` | Supporting actions, secondary buttons |
@@ -40,11 +40,17 @@ Polish constants (baked, not exposed): `--radius-sm` 6px · `--radius-md` 10px �
 
 | Level | Surface | Where |
 | --- | --- | --- |
-| L0 page | `--color-page` | `<body>`, full-bleed shell |
-| L1 card | `--color-background` | Cards, sidebar, popovers, dropdowns |
-| L2 content | `--color-foreground` | Card body, inputs, code blocks |
+| L0 page | `--color-page` | `<body>`, full-bleed shell — derived: background + 4% font |
+| L1 canvas | `--color-background` | Main content area — the page canvas |
+| L2 chrome | `--color-foreground` | Sidebar, cards, panels — float above the canvas |
 
-Sidebar = L1. Inputs = L2. There is no L3. A card header/footer shares the card surface; never tint them separately.
+In dark mode: background (10%) is deeper than foreground (13%) — chrome panels rise above the canvas. In light mode: background (93% gray) is muted, foreground (100% white) is bright — panels shine above the canvas.
+
+Inputs sink back to `background` (the canvas level) when inside a `foreground` panel — they feel recessed into the panel surface.
+
+There is no L3. A card header/footer shares the card surface; never tint them separately.
+
+> **Pending code rename:** the component code currently applies `bg-background` to cards and `bg-foreground` to card interiors — inverse of this model. A mechanical rename (`bg-background` ↔ `bg-foreground` on card/sidebar elements) is tracked separately. When doing that cycle, grep `bg-background` on article/aside/nav elements and `bg-foreground` on inner content divs.
 
 ---
 
@@ -87,6 +93,7 @@ The `--color-{border,muted,ring}` CSS vars exist (defined in `Layout.astro`) but
 - ❌ Mixing icon sets. Lucide only — via `<Icon>` / `<IconBadge>` (in `web/src/components/ui/`).
 - ❌ Inline SVG icons in React components. Import from `lucide-react` and wrap.
 - ❌ Unicode icon glyphs (☀ ☾ ▾ ✓ ✗). They render differently across OSes — use lucide.
+- ❌ `text-foreground` as a text color. `foreground` is the L2 panel *surface* token, not a contrast label — using it for text renders text the same color as its own background (invisible, and it flips wrong between light/dark). Use `text-font` for body text, `text-on-{primary|secondary|tertiary}` for text on a brand fill. **Exception:** the `bg-font text-foreground` Inverse button — surface-colored text on a font-colored fill is correct. Fine as-is (not policed here): `text-muted-foreground`/`text-card-foreground`/`text-popover-foreground`/`text-accent-foreground` (Layout.astro aliases them to `font`-derived colors) and shadcn's `text-{primary,secondary,destructive,sidebar}-foreground` contrast labels on brand fills (Button/Badge/Checkbox — they resolve via globals.css).
 
 ---
 
@@ -149,7 +156,7 @@ In Astro pages where you can't easily import React, use inline SVG with `viewBox
 
 ### Form fields
 
-Inputs use `background` (sunken), not `foreground` (raised). The card body is `foreground`; inputs sink back to `background` so they stand out as interactive surfaces against the body.
+Inputs use `background` (canvas level) inside a `foreground` panel — they appear recessed/sunken against the card surface. This is the correct spatial read: you're looking through the panel (foreground) into the canvas (background).
 
 ```tsx
 <div className="flex flex-col gap-1.5">
@@ -196,11 +203,21 @@ Three layers, all automatic:
 2. **PostToolUse hook** — `.claude/hooks/design-check.sh` greps every Write/Edit
    to `one.ie/web/**/*.{tsx,astro,css}` for banned patterns. Exit 2 on violation feeds
    the diff back to Claude as a tool error; the model self-corrects next turn.
-3. **This rule** — auto-loaded on the same files via `.claude/settings.json`,
-   so the constraints are in context before the first character is written.
+3. **This rule** — auto-loaded on the same files via the `paths:` frontmatter at
+   the top of this file (not `settings.json`, which wires hooks only), so the
+   constraints are in context before the first character is written.
 
 The hook allowlists `Layout.astro` (token source) and `design.astro` (showcase).
-There is no opt-out for other files.
+
+**Layers 2 and 3 are edit-triggered, so pre-existing violations survive.** The
+hook is PostToolUse: it only sees a file when that file is written. Nothing
+sweeps the tree, and layer 1 structurally cannot catch a hex string inside a JS
+object — it nulls Tailwind palette *classes*, not literals. So a file untouched
+since this rule landed can carry banned patterns indefinitely.
+`src/components/paths/PathGraph.tsx` did: it carried hex literals at lines 27,
+28, 29 and 55 until they were swept to `var(--color-{success,secondary,destructive})`.
+Treat "the hook is green" as "nobody has edited the offender", not as "the tree
+is clean".
 
 ---
 

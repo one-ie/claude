@@ -7,14 +7,13 @@
 
 # ── Runtime toggles ──────────────────────────────────────────────────────────
 #
-# ECC_DISABLED_HOOKS=hook:gate-guard,hook:stop-reflect
+# ECC_DISABLED_HOOKS=hook:git-add-guard,hook:post-edit
 #   Comma-separated hook IDs to skip. Useful in CI or setup scripts.
 #
 # ECC_HOOK_PROFILE=minimal|standard (default: standard)
-#   minimal  — skips signal emissions, reflect, session-end, post-edit lint
+#   minimal  — skips the post-edit lint
 #   standard — all hooks active
-#
-# Per-hook disable: ECC_GATEGUARD=off  (alias for hook:gate-guard)
+
 
 is_hook_disabled() {
   local id="$1"
@@ -35,16 +34,8 @@ is_hook_disabled() {
   case "$profile" in
     minimal)
       case "$id" in
-        hook:tool-signal|hook:stop-reflect|hook:session-end|hook:post-edit) return 0 ;;
+        hook:post-edit) return 0 ;;
       esac
-      ;;
-  esac
-
-  # Per-hook env aliases
-  case "$id" in
-    hook:gate-guard)
-      local v="${ECC_GATEGUARD:-}"
-      [[ "$v" =~ ^(0|off|false|disabled|disable)$ ]] && return 0
       ;;
   esac
 
@@ -66,4 +57,50 @@ hook_session_key() {
   fi
   # Fallback: hash of project dir
   printf '%s' "${CLAUDE_PROJECT_DIR:-$(pwd)}" | cksum | awk '{print $1}'
+}
+
+# ── Which channel actually delivered this hook's payload? ────────────────────
+#
+# hook_payload_channel "$@"  — echoes `argv`, `stdin` or `DARK`, and on a hit
+# leaves the raw JSON in HOOK_PAYLOAD. Never non-zero; never blocks on a tty.
+#
+# WHY this exists. On 2026-08-21 all five blocking PreToolUse hooks were found
+# to open with PAYLOAD="${1:-}" followed by [[ -z "$PAYLOAD" ]] && exit 0 —
+# but Claude Code delivers on STDIN, so $1 was always empty and every one of
+# them exited 0 before reading a field. They had been dark from the day they
+# were written, and every presence check said "wired": declared in
+# settings.json, forwarded by the runtime, executed. Only behaviour could see
+# it. The channel is therefore not a thing to assume; it is a thing to NAME.
+#
+# The bound matters. A bare $(cat) hangs forever on a tty or an idle pipe and
+# would freeze every session; the `! -t 0` guard plus an integer timeout is the
+# shape the four live guards already use (bash 3.2 REJECTS a fractional -t —
+# `read: 0.2: invalid timeout specification` — and its `-t 0` returns 1 even
+# when data IS available, so neither a sub-second bound nor a true poll is
+# reachable here). Note that `read -d ''` returns non-zero at EOF while still
+# assigning what it read, which is why the read is `|| true` and the verdict is
+# read off the VARIABLE, never off the exit code.
+#
+# What it deliberately does NOT do: make any caller refuse when the channel is
+# DARK. An unproven guard reported as live is the house bug; a guard that
+# refuses on an absent payload wedges the session. This reports. It never gates.
+hook_payload_channel() {
+  HOOK_PAYLOAD=""
+  local a="${1:-}"
+  if [[ -n "$a" && "$a" == *'{'* ]]; then
+    HOOK_PAYLOAD="$a"
+    printf 'argv'
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    local p=""
+    IFS= read -r -d '' -t "${HOOK_PAYLOAD_TIMEOUT:-1}" p <&0 || true
+    if [[ -n "$p" && "$p" == *'{'* ]]; then
+      HOOK_PAYLOAD="$p"
+      printf 'stdin'
+      return 0
+    fi
+  fi
+  printf 'DARK'
+  return 0
 }
