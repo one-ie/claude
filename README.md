@@ -18,7 +18,7 @@ claude plugin install oneie-claude@oneie
 Then connect to the ONE substrate:
 
 ```
-/setup
+/oneie-claude:setup
 ```
 
 That's it. The `/do` workflow is available immediately. The substrate tools activate the moment `ONEIE_API_KEY` is set.
@@ -93,7 +93,7 @@ const { target } = await c.select('product')
 
 Four calls. A commerce platform. The substrate records what converted, strengthens those paths, and starts surfacing better results automatically.
 
-**MCP tools available after `/setup`:**
+**MCP tools available after `/oneie-claude:setup`:**
 
 | Group | Tools |
 |-------|-------|
@@ -128,7 +128,7 @@ You do not bolt these together. You get them as a consequence of using the subst
 | Command | What |
 |---------|------|
 | `/do` | Front door — idea to shipped, proven feature |
-| `/setup` | Connect to the ONE substrate, verify, confirm MCP tools |
+| `/oneie-claude:setup` | Connect to the ONE substrate, verify, confirm MCP tools |
 | `/close` | Close a cycle — learnings, signals, doc-sync |
 | `/create` | Scaffold a new artifact from a template |
 | `/see` | Inspect substrate state |
@@ -203,7 +203,7 @@ The plugin wires up the MCP server automatically. Install the packages your proj
 # SDK — TypeScript client
 npm install @oneie/sdk
 
-# MCP server — substrate tools in Claude Code (required for /setup)
+# MCP server — substrate tools in Claude Code (required for /oneie-claude:setup)
 npm install @oneie/mcp
 
 # CLI — terminal access to the substrate

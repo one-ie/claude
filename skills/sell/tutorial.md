@@ -27,10 +27,10 @@ claude plugin install oneie-claude@oneie
 Then, inside Claude Code:
 
 ```
-/setup
+/oneie-claude:setup
 ```
 
-`/setup` saves one key at `~/.config/one/key` (mode 0600). The plugin's tools
+`/oneie-claude:setup` saves one key at `~/.config/one/key` (mode 0600). The plugin's tools
 and the `one` CLI both read that file, so nothing gets pasted into a shell
 (`packages/claude/commands/setup.md:9-12`).
 

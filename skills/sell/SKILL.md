@@ -11,7 +11,7 @@ answer is to say so, not to invent a workaround.
 
 ## 0. Connected?
 
-The plugin's tools read `~/.config/one/key`. If it is missing, run `/setup`
+The plugin's tools read `~/.config/one/key`. If it is missing, run `/oneie-claude:setup`
 first. Every door below acts as the owner of that key's group.
 
 ## 1. Register the endpoint
