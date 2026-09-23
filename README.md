@@ -11,7 +11,8 @@ One command. One substrate. Install this plugin and Claude Code gains two things
 ## Install
 
 ```bash
-claude plugin install @oneie/claude
+claude plugin marketplace add one-ie/claude
+claude plugin install oneie-claude@oneie
 ```
 
 Then connect to the ONE substrate:
