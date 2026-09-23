@@ -7,8 +7,8 @@
         "@oneie/mcp"
       ],
       "env": {
-        "ONEIE_API_KEY": "${ONEIE_API_KEY}",
-        "ONEIE_API_URL": "${ONEIE_API_URL}"
+        "ONEIE_API_KEY": "${ONEIE_API_KEY:-}",
+        "ONEIE_API_URL": "${ONEIE_API_URL:-https://one.ie}"
       }
     }
   }

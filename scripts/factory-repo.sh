@@ -509,6 +509,7 @@ text/rubrics.md
 text/rubric-migration-plan.md
 text/templates.md
 text/templates-plan.md
+text/tone.md
 text/voice-and-tone.md
 text/writing-style-guide.md
 text/lifecycle.md

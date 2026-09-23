@@ -9,7 +9,9 @@ This skill is the **middle layer** of three. It does not write prose (that's the
 
 A generic writing skill can make any paragraph clearer. It cannot tell you that the paragraph doesn't belong in a `-reference.md` at all. That judgment is this skill.
 
-**The order:** invoke `docs` (pick type + rules) → copy the matching `template-*.md` (shape) → invoke `writer` (craft the prose) → invoke `voice` (pick + apply the register) → check `.claude/product-marketing.md` (product context).
+**The order:** invoke `docs` (pick type + rules) → copy the matching `template-*.md` (shape) → invoke `writer` (craft the prose) → invoke `voice` (pick + apply the register — § Voice below says which) → check `.claude/product-marketing.md` (product context) → hold every claim to [`text/tone.md`](../../../text/tone.md) (§ Status honesty below).
+
+**Anthony's voice lives in two files, and neither is `text/voice.md`.** [`text/voice-and-tone.md`](../../../text/voice-and-tone.md) is how a sentence *sounds* (the senior spec, vendored from the book). [`text/tone.md`](../../../text/tone.md) is what a sentence may *claim* (vendored from the whitepaper tone guide). `text/voice.md` is the ElevenLabs voice-agent promise, so leave it out of anything about prose.
 
 The full taxonomy lives in [`text/docs.md`](../../../text/docs.md); the template map in [`text/templates.md`](../../../text/templates.md). This skill is how you *apply* them.
 
@@ -130,12 +132,66 @@ A dense, token-lean briefing for an AI agent that must *act*: the signal chain, 
 
 ---
 
+## Voice — which register each type takes
+
+The `voice` skill holds the registers and their measurements; this skill does not restate them. What only this skill knows is **which register each doc type gets**:
+
+| Type | Register | Note |
+|---|---|---|
+| root `<slug>.md` | **commercial**: `voice` → [`writing-style-guide.md`](../../../text/writing-style-guide.md) | The one doc type Anthony may write in the first person. Receipts, not adjectives, and a close that names what is still broken |
+| `-docs.md` · `-tutorial.md` · `-how-to.md` | **plain commercial** | The same traits minus the first person: receipts, not adjectives, and the shadow named. No "I" in a how-to |
+| standalone story (`template-story.md`, e.g. `text/ants.md`) · essay · whitepaper chapter | **book**: `voice` → [`voice-and-tone.md`](../../../text/voice-and-tone.md) | No visible author, no product names, sells nothing. Em dashes are used freely |
+| `-features.md` · `-plan.md` · `-reference.md` · `-agents-docs.md` · `-ui.md` · `-todo.md` | **none**, plain and exact | `voice` says so itself: its registers make internal specs worse. [`tone.md`](../../../text/tone.md) still applies, because a spec can overclaim too |
+
+The rule of 3 or fewer em dashes belongs to the two commercial rows **only**. Book register uses em dashes freely, and a spec is not counted.
+
+Two rules sit across all three:
+
+- **Observe before asserting.** This comes from the senior spec: *"The intelligence was not in any of the ants"* beats *"intelligence is a property of substrates."* In docs, a measured number beats an adjective.
+- **Put the shadow in.** Every account says what is still broken, unproven or out of scope. The *✗ what we don't claim* list in `tone.md` does the same job as "Out of scope (excluded, in writing)" in a promise.
+
+---
+
+## Status honesty — one rule, three spellings
+
+Three conventions in this repo express the same rule. [`tone.md`](../../../text/tone.md) states it as a ladder: demonstrated → state as fact · observed → observation · hypothesized → hypothesis · hoped for → do not state. [`learning.md`](../../../text/learning.md) prints it on every card as `●` shipped · `◐` partial · `○` red, unstarted. `CLAUDE.md` writes it into prose as **"Designed, not built:"** followed by the grep that proves the absence.
+
+In a doc that means:
+
+- **Every capability claim carries its rung.** Shipped means a `file:line` or a green `accept:`. Anything short of that is marked `◐`/`○`, or its paragraph opens with "Designed, not built". A "Designed, not built" line that stops at the label is only half done; end it with the grep that returns 0.
+- **A count carries its honesty fields.** If it was truncated, it is a floor ("at least N"). If it was capped, say which budget bit. A number with no source gets cut.
+- **Never promote a rung in prose.** Only a proof moves a claim from `○` to `●`, and the doc follows the proof.
+
+---
+
+## Loops and learning — a doc lives inside the loop
+
+A ONE doc is not a record kept after the fact. It sits at both ends of the loop. It is written **first**, as the spec: the promise and its `accept:` lines. It is read **last**, as the oracle: PROVE checks shipped behaviour against it. `/do`, the factory and [`one-loop.md`](../../../text/one-loop.md) all treat a lying doc as work. The MINE lane lists "stale claims that contradict shipped code (fixing a lying doc is gold too)".
+
+**The loop, as the canon describes it.** This is what a doc must match when it describes learning:
+
+- **One turn** ([`loop-plan.md`](../../../text/loop-plan.md)): emit → route → act → close (`mark`/`warn`) → weigh → forget (`fade`) → learn (`harden`). Its litmus test: *does a real outcome change the next pick, through `path.strength`?* If no outcome moves a weight, the thing being described is surface area, not a loop.
+- **The seven loops** ([`learning.md`](../../../text/learning.md) § The mechanism): L1–L7, each with a cadence. Take them from that table and never invent an eighth. **Open question, not yet ruled:** the table names L2 and L6 with two words that `CLAUDE.md` lists as dead names, and `text/dictionary.md` carries no exemption for them. Until that is ruled, cite those two by number (L2, L6) and describe what they do.
+- **The nested loops**, a proposal and not settled canon ([`factory-loops.md`](../../../text/factory-loops.md), written as "I would model five distinct loops"): world → do → execution → proof → learning, each on its own timescale. Borrow the frame to say which timescale a doc is about, and cite it as a proposal.
+
+**What that puts on the writer:**
+
+1. **A doc that describes a loop names its close.** Every signal closes with `mark`, `warn` or dissolve (locked rule 1). A loop with no close in the doc usually has none in the code either.
+2. **Learning verbs are real or they are flagged.** Check both places before you write a `learning:*` name, because they disagree. `learning:dream`/`eval`/`complete` are **resolvers** (`one.ie/web/src/lib/resolvers/learning.ts:130`, `:280`, `:427`), but none of them is in the SDK registry: `grep -c "'learning:" packages/sdk/src/receivers.ts` → 0, as of 2026-09-23. So cite the resolver and don't call them registered receivers. `learning:know` exists in neither place, so never cite it. The only shipped harden receiver is `chat:harden` (`receivers.ts`).
+3. **A correction stays in the doc, dated.** When a doc's number or claim proves wrong, keep the wrong version, the date and the reason the new one is right. `CLAUDE.md`'s "three numbers, two of them wrong" paragraph is the model. Silently swapping the number erases what the next reader most needs to know.
+4. **The lesson goes to [`learnings.md`](../../../text/learnings.md),** one line in its stated format (`- YYYY-MM-DD · cycle · wave|gate · sentence · rubric=… · source=…`). An unsettled idea goes in as `hypothesis:` and later gets its own confirmed or refuted line. The verdict does for a written hypothesis roughly what L6 and L3 do for a path. It is an analogy: `learnings.md` is a file, and those loops act on paths.
+5. **Write the trap with its measurement.** The happy path is cheap to document. What the next session needs is the failure that happened, the number that exposed it, and the check that now stops it.
+
+**Designed, not built:** the observables loop in [`docs-first-loop.md`](../../../text/docs-first-loop.md). It adds a frozen `observables:` frontmatter block in `-docs.md`, one test per observable, and a freeze diff at close. Its driver, `.claude/scripts/do-observables.sh`, does not exist (`ls` → no such file), so it is not a gate. No script under `.claude/scripts/` reads `observables:` (`grep -rln observables .claude/scripts` → nothing, 2026-09-23). An `observables:` block may be written by hand as a statement of intent, but don't report it as checked.
+
+---
+
 ## How it composes with the other layers
 
 1. **Pick the type** (this skill) — reader + question → type. If the content spans two types, split before writing.
 2. **Copy the template** — the type → template map is the table in [`text/templates.md`](../../../text/templates.md); most types are `template-<type>.md`, with two exceptions worth knowing before you `cp` the wrong file: the **promise** copies `template-feature.md` for its frontmatter contract (`deliverables:`/`proof:`/`derives:`) — `template-promise.md` is a separate CRAFT template (the honesty-first + numbered-scorecard prose pattern), read alongside it, never copied in its place — and the **explanation** copies `template-teach.md` (there is no `template-docs.md`). The template is the shape; never write a doc-spine artifact from scratch.
 3. **Write with `writer`** — apply the craft loop (cut, show-don't-tell, structure, sentence polish). This skill says *what goes where*; `writer` makes each sentence land.
-4. **Check voice** — `.claude/product-marketing.md`: ONE's audience (CEOs + engineers), simple English, banned words. Run `bash .claude/scripts/do-reconcile.sh dictionary text/<file>.md` before committing (no dead names, no new synonyms) — the scripts are not on PATH.
+4. **Check voice** — the register from § Voice, then `.claude/product-marketing.md`: ONE's audience (CEOs + engineers), simple English, banned words. Then hold every claim to `text/tone.md` (§ Status honesty). Run `bash .claude/scripts/do-reconcile.sh dictionary text/<file>.md` before committing (no dead names, no new synonyms) — the scripts are not on PATH.
 
 ---
 
@@ -147,6 +203,10 @@ A dense, token-lean briefing for an AI agent that must *act*: the signal chain, 
 - [ ] **No duplication across files.** If two docs say the same thing, one should link to the other.
 - [ ] **Links resolve.** Cross-references to sibling docs and `file:line` anchors are real.
 - [ ] **Facts verified.** For reference/agent-briefing, every name/signal/field checked against code.
+- [ ] **Right register.** Commercial, book or none, per § Voice. The ≤3 em-dash rule was applied only if the register is commercial.
+- [ ] **Every claim on its rung.** Shipped claims have a receipt; the rest are `◐`/`○` or "Designed, not built" with the grep; floors say "at least" (`text/tone.md`).
+- [ ] **Loops close.** Any loop the doc describes names its `mark`/`warn`/dissolve, and uses the L1–L7 numbering from `learning.md`. No `learning:know`.
+- [ ] **Corrections dated, lessons logged.** A fixed claim keeps its wrong version and date; the lesson has a line in `text/learnings.md`.
 - [ ] **Voice clean.** No banned words; dictionary reconcile passes.
 
 ---
@@ -166,4 +226,4 @@ A dense, token-lean briefing for an AI agent that must *act*: the signal chain, 
 
 ---
 
-*Taxonomy: [`text/docs.md`](../../../text/docs.md). Templates: [`text/templates.md`](../../../text/templates.md). Craft: `writer` skill. Register: `voice` skill → [`text/voice-and-tone.md`](../../../text/voice-and-tone.md) (senior) + [`text/writing-style-guide.md`](../../../text/writing-style-guide.md). Product context: [`.claude/product-marketing.md`](../../product-marketing.md).*
+*Taxonomy: [`text/docs.md`](../../../text/docs.md). Templates: [`text/templates.md`](../../../text/templates.md). Craft: `writer` skill. Register: `voice` skill → [`text/voice-and-tone.md`](../../../text/voice-and-tone.md) (senior) + [`text/writing-style-guide.md`](../../../text/writing-style-guide.md). Claims: [`text/tone.md`](../../../text/tone.md). Loops: [`text/loop-plan.md`](../../../text/loop-plan.md) · [`text/one-loop.md`](../../../text/one-loop.md) · [`text/learning.md`](../../../text/learning.md) · [`text/learnings.md`](../../../text/learnings.md). Product context: [`.claude/product-marketing.md`](../../product-marketing.md).*

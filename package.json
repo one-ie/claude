@@ -1,6 +1,6 @@
 {
   "name": "@oneie/claude",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "ONE Claude Code plugin — /do lifecycle, W0-W4 BUILD engine, 7-canon reconcile, ONE substrate via MCP, signals, and rules",
   "files": [
     ".claude-plugin",
