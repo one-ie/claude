@@ -306,6 +306,7 @@ monorepo-only  incident.sh
 portable       skills/ai-sdk
 portable       skills/ai-ui
 portable       skills/composio
+portable       skills/sell
 portable       skills/youtube-subs
 monorepo-only  flywheel-outcome.sh
 monorepo-only  jev-tag-audit.mjs

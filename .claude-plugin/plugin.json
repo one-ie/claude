@@ -1,6 +1,6 @@
 {
   "name": "oneie-claude",
-  "version": "0.10.4",
+  "version": "0.10.5",
   "description": "ONE Claude Code harness — /do lifecycle, W1-W4 BUILD engine, signals, and rules for the ONE substrate",
   "author": {
     "name": "ONE",

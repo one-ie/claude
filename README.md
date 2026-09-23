@@ -25,6 +25,16 @@ That's it. The `/do` workflow is available immediately. The substrate tools acti
 
 ---
 
+
+## Privacy: the plugin installs no hooks
+
+Installing the plugin adds commands, skills, agents and the `oneie` MCP tools. It adds
+**no hooks**, so nothing runs on your prompts and nothing is sent anywhere until you
+call a tool. A plugin installed at user scope would run its hooks in every project on
+your machine; hooks belong to the project that wants them, in that project's
+`.claude/settings.json`. You can also install the plugin for one project only:
+`claude plugin install oneie-claude@oneie --scope project`.
+
 ## What you get
 
 ### `/do` — idea to shipped
