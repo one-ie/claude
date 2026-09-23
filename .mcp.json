@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@oneie/mcp"
+        "@oneie/mcp@0.10.0"
       ],
       "env": {
         "ONEIE_API_KEY": "${ONEIE_API_KEY:-}",

@@ -16,7 +16,7 @@ async function readEnv(): Promise<Record<string, string>> {
     }
   }
   // Also honour process.env overrides
-  for (const k of ['ONE_API_KEY', 'ONE_WORKSPACE_SLUG', 'ONE_API_URL']) {
+  for (const k of ['ONE_API_KEY', 'ONE_WORKSPACE_SLUG', 'ONE_API_URL', 'ONE_ANNOUNCE_SESSIONS']) {
     if (process.env[k]) out[k] = process.env[k]!
   }
   return out
@@ -60,7 +60,10 @@ async function main(): Promise<void> {
     })
   } catch {}
 
-  // Announce to space:<slug> #staff.
+  // Announce to space:<slug> #staff — opt-in. On by default it posted once per
+  // session, headless review runs included: 12 posts in ~11h to space:vespio
+  // (2026-09-23), all from one operator's Mac, read by the group as activity.
+  if (env.ONE_ANNOUNCE_SESSIONS !== '1') return
   try {
     await fetch(`${base}/api/ask/space:post`, {
       method: 'POST',
