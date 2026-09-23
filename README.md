@@ -178,7 +178,7 @@ The substrate learns from agents the same way it learns from humans. Every signa
 | Var | Default | What |
 |-----|---------|------|
 | `ONEIE_API_KEY` | required for substrate tools | Your workspace API key |
-| `ONEIE_API_URL` | `https://api.one.ie` | Override for self-hosted |
+| `ONEIE_API_URL` | `https://one.ie` | Override for self-hosted — the app origin; `https://api.one.ie` 404s every `/api/*` call |
 
 Get your API key at [one.ie/settings/keys](https://one.ie/settings/keys).
 
