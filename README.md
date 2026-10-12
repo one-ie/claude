@@ -1,10 +1,6 @@
 # @oneie/claude
 
-One command. One substrate. Install this plugin and Claude Code gains two things: a complete build workflow that takes an idea to proven, shipped software — and direct access to the ONE substrate, the backend that makes any application composable by agents.
-
-```
-/do "your idea here"
-```
+Connect Claude Code to ONE. Install this plugin and Claude Code gets the ONE substrate as native tools, a handful of agents and skills that show how to build on it, and a door to the marketplace where the rest are sold.
 
 ---
 
@@ -15,61 +11,42 @@ claude plugin marketplace add one-ie/claude
 claude plugin install oneie-claude@oneie
 ```
 
-Then connect to the ONE substrate:
+Then connect:
 
 ```
 /oneie-claude:setup
 ```
 
-That's it. The `/do` workflow is available immediately. The substrate tools activate the moment `ONEIE_API_KEY` is set.
+The substrate tools switch on as soon as `ONEIE_API_KEY` is set.
 
 ---
 
-
 ## Privacy: the plugin installs no hooks
 
-Installing the plugin adds commands, skills, agents and the `oneie` MCP tools. It adds
-**no hooks**, so nothing runs on your prompts and nothing is sent anywhere until you
-call a tool. A plugin installed at user scope would run its hooks in every project on
-your machine; hooks belong to the project that wants them, in that project's
-`.claude/settings.json`. You can also install the plugin for one project only:
+Installing the plugin adds a few commands, skills and agents, plus the `oneie` MCP tools. It adds
+**no hooks**. Nothing runs on your prompts, and nothing is sent anywhere until you
+call a tool. You can also install it for one project only:
 `claude plugin install oneie-claude@oneie --scope project`.
 
 ## What you get
 
-### `/do` — idea to shipped
+| Kind | Ships in the plugin |
+|---|---|
+| **Commands** | `/oneie-claude:setup` connects the plugin to ONE · `/oneie-claude:pair` pairs this Claude Code with your ONE chat panel |
+| **Agents** | `guide` walks you through ONE · `onboarder` sets up a workspace · `ceo` routes work to the right agent · `support-agent` handles T1 support · `discovery-caller` runs sales discovery |
+| **Skills** | `oneie` · `signal` · `sdk` · `mcp` · `cli` · `planning` · `workflow` · `sell` |
+| **Rules** | `astro` · `react` · `ui`, the conventions of the ONE starter |
+| **Template** | `template-agent.md`, the shape to copy when you write your own agent |
 
-One command walks the entire build lifecycle. You confirm the goal once. Everything below it is owned by the workflow.
+Each shipped agent shows a different way to use the substrate, so you can copy the shape and write your own.
 
-```
-IDEA → AIM → PROMISE → SURVEY → [INVESTIGATE] → DESIGN → PLAN → BUILD → TEST → VERIFY → PROVE → TEACH → SHIP → LEARN
-```
+## The rest are in the marketplace
 
-The workflow is a spine of artifacts on disk. A phase whose artifact is already **true** — it both *exists* and *reconciles* with its canon (`true ≡ exists ∧ reconciles`) — is skipped. Missing → write it. Stale → rewrite it. True → skip. Point `/do` at a blank idea and it makes every artifact true. Point it at code that's missing tests and docs and it backfills only those.
+ONE runs more than a hundred agents and skills across marketing, sales, service, education and engineering. They are sold in the ONE marketplace: [one.ie/marketplace](https://one.ie/marketplace). Buy one, and your workspace can use it through the same MCP tools this plugin already set up, with no extra install.
 
-A cheap probe at the start sizes the work:
+Built something good yourself? The `sell` skill lists your own tool or agent in the same marketplace.
 
-| Tier | Runs | Agents |
-|------|------|--------|
-| PATCH (a typo) | code → verify | 0 |
-| FIX | survey → code → tests → prove | 2–3 |
-| FEATURE | full spine + clarify + analyze | full fan-out |
-| SCHEMA | FEATURE + substrate reconcile | full fan-out + Opus |
-
-You never pick the tier. The probe does, and it defaults down when unsure.
-
-**Definition of done — enforced, not hoped for:**
-
-1. The agreed goal is actually met (goal-fit gate)
-2. Every shippable deliverable has a test asserting it
-3. No regression — coherence ratchet held, `must_not_break` preserved
-4. Proven live, reachable, matches the promise
-5. Surfaces wired into navigation, not orphaned
-6. Docs in sync — no stale name, no dead link
-7. Rubric clears the bar
-8. Loop closed — recorded result, written learning
-
-A typo clears 1, 3, 7, 8. A feature clears all eight.
+---
 
 ### The ONE substrate — 13 operations via MCP
 
@@ -123,65 +100,6 @@ You do not bolt these together. You get them as a consequence of using the subst
 
 ---
 
-## Commands
-
-| Command | What |
-|---------|------|
-| `/do` | Front door — idea to shipped, proven feature |
-| `/oneie-claude:setup` | Connect to the ONE substrate, verify, confirm MCP tools |
-| `/close` | Close a cycle — learnings, signals, doc-sync |
-| `/create` | Scaffold a new artifact from a template |
-| `/see` | Inspect substrate state |
-| `/deploy` | 8-step deploy pipeline |
-| `/sync` | TypeDB ↔ KV ↔ D1 sync |
-| `/release` | Changelog + npm publish |
-
----
-
-## The BUILD engine
-
-When `/do` reaches the `code` phase it runs four waves:
-
-**W1 — Recon** — reads the relevant files at the cheapest model that can decide. Checks open improvement items first. Receipt capped at 400 words.
-
-**W2 — Decide** — the one phase that stays single. Writes the goal/deliverable/UX gate, runs the compress check before any new primitive, outputs exact diff specs.
-
-**W3 — Edit** — spawns one Sonnet agent per file, all in a single message. Pre-validates every anchor. Soft-resumes if interrupted.
-
-**W4 — Verify** — bash first, zero tokens: `bun run verify`, the goal gate, then `reconciles` — one predicate over seven canons (`substrate · dictionary · authority · sdk · design · navigation · types`) that subsumes the old reconcile, compress, promise-check, and doc-sync gates — and the ratchet (`delta_tsc ≤ 0`). Rubric only if the bash gates pass.
-
-```
-composite = 0.35·goal-fit + 0.20·security + 0.20·stability + 0.15·simplicity + 0.10·speed
-gate: composite ≥ 0.65  AND  goal-fit ≥ 0.50  AND  delta_tsc ≤ 0
-```
-
-A cycle that runs zero LLM calls is a good cycle.
-
----
-
-## Templates
-
-Each spine stop that writes an artifact has a template — copied, never written from scratch, under the naming law `template-<suffix>.md → <slug>-<suffix>.md`. One proof observable is named once at PROMISE and referenced (never restated) all the way to TEACH.
-
-| Template | Stop | Writes |
-|----------|------|--------|
-| `template-feature.md` | PROMISE | `<slug>.md` — the promise + the one proof observable PROVE checks |
-| `template-plan.md` | DESIGN | `<slug>-plan.md` — design, pre-mortem, 7-canon reconcile gate |
-| `template-todo.md` | PLAN | `<slug>-todo.md` — cycles, parallel budget, DAG, testing policy |
-| `template-agent.md` | BUILD | `.claude/agents/<name>.md` — agent contract + one filled example |
-| `template-tests.md` | TEST | the cycle's demo gate — assert the destination, red before green |
-| `template-teach.md` | TEACH | `<slug>-doc.md` — the journey doc for humans *and* agents |
-
----
-
-## Agents as builders
-
-Agents are actors. They have the same thirteen operations as any other actor — the same API key, the same signal grammar, the same read surfaces. A human developer and an AI agent calling `signal` land in the same substrate. Same paths. Same pheromone.
-
-An agent wakes at 3am. It reads the `learning` dimension and finds a cluster of signals that dissolved — users asked for something nobody delivered. It reads `paths` to find which actors have skills close to what was asked. It creates a new thing, publishes it, signals the three closest actors. By morning, a new skill exists that did not exist at midnight. No ticket. No sprint. No deployment pipeline approval.
-
-The substrate learns from agents the same way it learns from humans. Every signal deposits pheromone. Every outcome marks or warns the path. A platform built on ONE improves continuously — not because someone configured a recommendation engine, but because the structure of the substrate makes learning unavoidable.
-
 ---
 
 ## Environment
@@ -212,14 +130,4 @@ npm install -g @oneie/cli
 
 ---
 
-## The insight
-
-Every other BaaS was built when the application's users were humans. ONE was built for the era where the application's users include agents, the application logic can itself be an agent, and the intelligence accumulates in the substrate automatically.
-
-This plugin is the proof. We built our entire development workflow on the ONE substrate — `/do` signals, marks, and learns across every cycle. It is a Claude Code plugin. It is also a ONE application. Install it and you get both.
-
-```
-/do "your idea here"
-```
-
-[one.ie](https://one.ie) · [api.one.ie](https://api.one.ie) · [github.com/one-ie/claude](https://github.com/one-ie/claude)
+[one.ie](https://one.ie) · [marketplace](https://one.ie/marketplace) · [github.com/one-ie/claude](https://github.com/one-ie/claude)

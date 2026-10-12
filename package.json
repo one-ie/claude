@@ -1,7 +1,7 @@
 {
   "name": "@oneie/claude",
-  "version": "0.10.6",
-  "description": "ONE Claude Code plugin \u2014 /do lifecycle, W0-W4 BUILD engine, 7-canon reconcile, ONE substrate via MCP, signals, and rules",
+  "version": "0.12.0",
+  "description": "ONE Claude Code plugin — the substrate via MCP, starter agents and skills, and the door to the ONE marketplace",
   "files": [
     ".claude-plugin",
     ".mcp.json",
@@ -10,7 +10,6 @@
     "agents",
     "skills",
     "rules",
-    "scripts",
     "templates",
     "README.md"
   ],
@@ -40,12 +39,11 @@
   "keywords": [
     "claude-code",
     "plugin",
-    "do",
-    "lifecycle",
     "mcp",
     "signals",
-    "typedb",
     "agents",
+    "skills",
+    "marketplace",
     "one"
   ],
   "license": "SEE LICENSE IN LICENSE",

@@ -199,7 +199,7 @@ Single-purpose groups stay flat as top-level commands — `one whoami`, `one doc
 ```
 $ one group bulk-create --csv clients.csv
 batch 1/1  created=12  skipped=3
-ok  total_rows=15  created=12  duplicates=3  batches=1  plan="studio"  segment="ICP-1"  dry_run=false
+ok  total_rows=15  created=12  duplicates=3  batches=1  plan="free"  segment="ICP-1"  dry_run=false
 ```
 
 Values are `JSON.stringify`d, so strings keep their quotes and `ok` itself is
@@ -209,7 +209,7 @@ dropped from the human line.
 
 ```
 $ one group bulk-create --csv clients.csv --json
-{"ok":true,"total_rows":15,"created":12,"duplicates":3,"batches":1,"plan":"studio","segment":"ICP-1","dry_run":false}
+{"ok":true,"total_rows":15,"created":12,"duplicates":3,"batches":1,"plan":"free","segment":"ICP-1","dry_run":false}
 ```
 
 `--json` is a global option declared on `program`, and `jsonMode()` finds it at

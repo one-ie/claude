@@ -100,6 +100,56 @@ parent), or **declined with an argument** — a refusal on principle is sometime
 available. "Blocked" with no named blocker is not a status, it is a shrug. A meeting whose output
 is a document and no moved row has failed, however good the document.
 
+## How to write a post anyone can read — the house style
+
+Whoever opens `/u/<slug>/in` was not in your session. They want to know what happened and
+whether they must act. Write for them, not for your log. Every post, every agent, every door.
+
+1. **Line one is one sentence of about 20 words — the result in plain words**: what happened and
+   what it means for the reader. 140 characters at most, no semicolon, no SHA, task id, card
+   number or acronym. It is the line a reader sees first (previews show the first 140
+   characters), and the line to send as `meta.summary` where your door takes a `meta`. Over 140?
+   Cut a clause; the clause belongs in the body.
+2. **Bad news goes up high.** "Did not land:" comes before the detail, never after the praise.
+3. **Name things, don't code them.** "the mutation check", not `l1`; "the release tests", not
+   `pool lane receipt 6aba7c76f8d7`. A bare id means nothing to a reader — look the name up before
+   you post (`tasks:list`). If you cannot, say "a task". Never guess what an id is: a commit is not a task.
+4. **Refs go last, once, at most three** — `Refs: d1199583b · text/factory-optimise.md`. Never a
+   SHA inside a sentence. The rest lives in a report you name.
+5. **A number carries its unit and its comparison** — "$0.85 a landed card, down from $2.95". The
+   numbers in one post must agree; if two disagree, say which counts what, never post both silently.
+6. **Short blocks, not a chain.** One line each: What changed · What didn't · Cost · Next. No `·`
+   chains, no `a → b → c` shorthand. A table only for 3+ rows and 2+ real columns — never an empty
+   header row, never the same table twice in a thread.
+7. **End with what the reader must do, by name** — "@tony — nothing to decide." or "@tony — one
+   yes to ship." If nobody needs to act, say that.
+8. **Aim for about 120 words.** If the facts do not fit, keep the headline, what the reader must
+   do, and the two or three facts they will act on, and name the file that holds the rest — so a
+   reader can stop after the first line or the last. Never squeeze detail into codes and
+   shorthand. Use the dictionary's words.
+9. **Machine detail goes last, under "How it was measured".** Where your role, a gate or the
+   meeting ledger requires a command, an `asOf`, tids, a lane signature or a `KPIS:` line, keep it
+   exactly as required — in a closing block after the plain lines above, never in them.
+
+**Before** (a real post, 2026-09-30, one paragraph, 946 characters):
+
+> Meeting lk close. Landed on origin/dev (d1199583b, fac591de6, report 505b5a72e): l1 (mutate-check.sh
+> + --check Mutation refusal), l2, l3, l4, l5, l6, l7, l9, l10 = 10 cards, all typed by deepseek,
+> tests by kimi, judged by astra; 9 rows closed. Not landed: l8 (board pack), five builds red.
+> Conductor Claude $8.49 list / 10 cards = $0.85 per landed card vs $2.95 in key Wave A (target $0.15) …
+
+**After** (same facts; the closing @-line is the writer's call, not the source's):
+
+> The lessons run landed on dev and a landed card now costs $0.85, down from $2.95; one lesson and five builds did not land.
+>
+> **Changed** — the mutation check, which breaks code on purpose to prove a test can fail, plus the other lessons. Nine task rows closed.
+> **Didn't land** — the board-pack lesson; five builds went red.
+> **Cost** — $8.49 of Claude for ten cards (goal: $0.15). Two passed first try; the rest needed their card amended.
+> **Mistake** — one push went out while a check was red; that red was already on dev.
+> **Next** — two follow-up rows: use the mutation check in the driver; let landing record the dev gate.
+>
+> @tony — nothing to decide. Refs: `d1199583b` · text/factory-optimise.md
+
 ---
 
 # Onboarder

@@ -14,9 +14,20 @@ paged by six tags, found 353 more rows **by name only**, and never learned the r
 `tasks:board` exists so that cannot happen again — and so you can reason about 2,000 tasks
 while reading 0 of them.
 
-**Use the CLI first.** `one tasks board|bulk|set` (`packages/cli/src/tasks.ts`) is the fast door —
-it walks the pages, chunks writes at 25, and previews filter writes unless `--apply`. Pipe `--json`
-to a file and filter it with `node -e`/`jq`; never read 2,000 rows through the context window.
+**The door is `one tasks`.** `one tasks board|brief|plan|bulk|set|sequence|depend|undepend`
+(`packages/cli/src/tasks.ts`; the bin is `one` or `oneie`, and from the monorepo
+`node packages/cli/dist/src/index.js tasks …`) walks the pages, chunks writes at 25, and previews
+filter writes unless `--apply`. Pipe `--json` to a file and filter it with `node -e`/`jq`; never
+read 2,000 rows through the context window.
+
+**Never hand-roll a direct API call for board work while a `one tasks` verb covers it** — no
+`curl` to `/api/ask/tasks:*`, no `ask` loop, no per-row MCP loop. Measured in the 2026-09-28
+friction report (root `task:01a0e611a439062e48d1450a`): three hand-written HTML-error parsers,
+custom retry loops and token maths in shell in one session — every one of them something
+`one tasks` already does. The JSON recipes below are the payloads the CLI sends: read them to
+understand a field, send them yourself only where no shell exists. A seat running the board
+turn by turn (ceo, cto, cmo, cfo, cro, cxo, cco, chairman) loads the `orchestrate` skill
+(`one.ie/ai/skills/orchestrate/SKILL.md`) — the loop on top of these verbs.
 
     node packages/cli/dist/src/index.js tasks board --workspace one --tree --summary          # 1 — see it all
     node packages/cli/dist/src/index.js tasks board --workspace one --tree --all --limit 2000 --include notes --json > board.json
@@ -35,8 +46,9 @@ blocker is satisfied, an open one outside the goal is `waits outside plan` and n
 Dispatch hints ride in notes as labelled lines — `model:` `effort:` `touches:` `accept:` — and rows
 in one wave that share a `touches:` path are serialised. Promise + plan: `text/tasks-cli.md`.
 
-The raw HTTP door and the MCP tools below are the same receivers; use them only without a shell.
-If `tasks` is an unknown command the CLI `dist/` is stale — rebuild sdk then cli.
+The raw HTTP door and the MCP tools below are the same receivers — the fallback for a turn with
+no shell, never a second door beside the CLI. If `tasks` is an unknown command the CLI `dist/`
+is stale — rebuild sdk then cli, and do not fall back to curl.
 
 Every door: `POST https://one.ie/api/ask/<receiver>`, `Authorization: Bearer $GATEWAY_API_KEY`
 (from `one.ie/web/.dev.vars`, **not `.env`**), body wrapped in `{"data":{…}}` or you get
@@ -252,5 +264,67 @@ table and its own judgment, and unstaked work stays the CEO's call.
 
 `packages/sdk/src/receivers.ts` — the contract; its `describe()` text is the spec, never invent a
 field · `.claude/skills/meeting/SKILL.md` — the room where rows move ·
-`.claude/agents/ceo.md § Seeing the whole board` · `text/tasks-inbox-plan.md` §5-§6 — the decided
+`one.ie/ai/skills/orchestrate/SKILL.md` — the seats' loop over these verbs · `text/tasks-inbox-plan.md` §5-§6 — the decided
 doctrine and the unbuilt rungs.
+
+## Seeing the work — a page of tasks is not the board
+
+**The measured failure.** 2026-09-13: an agent asked for the board, hit a 200-row page,
+paged by six tags, found **353 more rows by NAME ONLY**, and never learned the real
+total. `tasks:list` has no cap but refuses without a `tag`, so the unfiltered question —
+*every task in this group* — had no door at all. The account is in the contract itself
+(the `WHY.` block above `"tasks:board"` in `packages/sdk/src/receivers.ts`).
+
+**The door is the CLI, not the MCP and not hand-rolled `ask` calls (2026-09-19).** Read, plan and
+edit tasks with `one tasks` — `board` (read), `bulk` (file a plan / edit named rows from a JSON
+file), `set` (one edit to every row a filter matches). One process, the page walk done for you,
+output to a file so 2,859 rows never enter a context window:
+
+    node packages/cli/dist/src/index.js tasks board --workspace one --tree --all --limit 2000 --include notes --json > board.json
+
+Measured the same day: the whole board in **2 pages / 14.5s**, where the MCP session made a dozen
+`tasks_list` / `ask` calls because its server was a stale build that predated `tasks_board`. A
+per-row `tasks_create`/`tasks_status` loop is the same mistake in the write direction — use
+`tasks bulk` (`creates` chunks at 25) or `tasks set` (preview unless `--apply`). To decide and
+sequence, `one tasks brief` is the one-screen digest (approvals excluded and counted, the open
+blocker named, stale-DONE rows, next five moves, `total`/`truncated`/`asOf` always) and `one tasks
+plan <goal|tag>` orders rows into waves with a hop-count critical path (`--emit dispatch` for
+parallel agents); `sequence`/`depend`/`undepend` write the edges (`text/tasks-cli.md`). Reach for the MCP
+tool only when no shell is available. **The CLI's `dist/` is a build, not the source** — if
+`one tasks` answers `unknown command`, rebuild `packages/sdk` then `packages/cli` first
+(§ npm packages); a `node_modules/@oneie/sdk` that resolves to the npm copy instead of the
+workspace is the usual cause and its `tsc` errors are phantom.
+
+**One request to read, one request to act.** `tasks:board` returns a whole group's board
+(`scope:"tree"` = its whole subtree) plus a `summary` computed over **ALL** matched rows —
+byStatus/byTag/byAssignee/byWorkspace, ready, blocked, overdue, unassigned, orphans,
+noNotes — so a planner reasons about 2,000 tasks while reading 0 of them (`view:"summary"`).
+`tasks:bulk` then moves them: `creates` files a whole plan tree in one call (`ref` handles
+resolve within the call), `edits` changes named rows, and `where`+`set` applies one edit to
+every row a board filter matches. **A filter-driven write is a dry run by default** — you
+read `matchedIds` first, and `dryRun:false` is required in so many words
+(`one.ie/web/src/lib/resolvers/tasks.ts:2276-2278`).
+
+**Four honesty fields, each one an obligation.** `total` = rows matching *before* paging,
+exact — *unless* `truncated.rows` is present, and then it is a **floor**. `nextCursor`
+present ⟺ more rows match; absent = you have them all. `truncated` absent = nothing was
+cut; present = **say so in your report** before you plan on it. `asOf` = when the snapshot
+was built — it is a 60s KV memo, not a live read, and `fresh:true` is honoured at most once
+per window (`one.ie/web/src/lib/tasks/board.ts:182`, `:217-226`). The snapshot is how this
+obeys `one.ie/web/src/lib/CLAUDE.md § The brain and the edge`: `loadBoardSnapshot` is the only function that does I/O, and
+the TypeDB read happens at most once per memo window, behind the memo — never per request.
+
+**The law this puts on every receiver after it: a short answer must say it is short.**
+A silent clamp is worse than a small one — a 595-row queue came back as 200 rows and read
+as complete, which is why `tasks:everywhere`'s raised ceiling now ships with `total` and
+`truncated` beside it (`resolvers/subscriptions.ts:1100`, `:1203-1204`). A receiver that
+caps, pages or samples names the budget that bit, in the response, every time.
+
+Contract: `packages/sdk/src/receivers.ts` — the zod `describe()` text is the spec, never
+invent a field. How an agent uses it: `.claude/skills/planning/SKILL.md`. **Designed, not
+built:** `changedSince`, `summary.decisions`, `include:["route"]` and the CEO digest are
+R9–R12 of `text/tasks-inbox-plan.md` §6 — zod strips undeclared keys, so a payload written
+against one degrades silently instead of erroring.
+
+- Don't report a floor as a count — a `total` beside a present `truncated.rows` is a floor, and `tasks:bulk`'s `matched` on a truncated snapshot now says so in a TYPED FIELD you can branch on, not only in prose: `truncated` rides the response in `tasks:board`'s own `{rows, edges, tags}` shape (`resolvers/tasks.ts:3171`), with the human sentence still at `:3169`. **Absent is not `false`** — an untruncated snapshot carries no `truncated` key at all. Quote a floor as "at least N". (The cite here was `resolvers/tasks.ts:2577-2578` until 2026-09-15; those lines are the `tasks:list` header comment.)
+- Don't quote `matched` as delivered — `tasks:announce`'s `matched` is `actors.length` from the fan-out (`resolvers/subscriptions.ts:1245`, inside the `'tasks:announce'` block that opens at `:1227`). It is reach, not action. **The cite was `:990` until 2026-09-15 and nothing at `:990` is a `matched` line — it is `lane = 'explore'`.** The neighbouring `matched: actors.length` at `:928` belongs to `world:announce` (opens `:876`), and `:1555` is a third. The contract now says it too: `tasks:announce`'s `matched` carries a `describe()` reading REACH, NEVER DELIVERY

@@ -1,7 +1,7 @@
 {
   "name": "oneie-claude",
-  "version": "0.10.6",
-  "description": "ONE Claude Code harness — /do lifecycle, W1-W4 BUILD engine, signals, and rules for the ONE substrate",
+  "version": "0.12.0",
+  "description": "ONE for Claude Code — the substrate as MCP tools, five starter agents, eight skills, and the door to the ONE marketplace",
   "author": {
     "name": "ONE",
     "email": "tony@one.ie",
@@ -9,13 +9,13 @@
   },
   "homepage": "https://github.com/one-ie/claude",
   "repository": "https://github.com/one-ie/claude",
-  "license": "SEE LICENSE IN https://one.ie/free-license",
+  "license": "SEE LICENSE IN LICENSE",
   "keywords": [
-    "do",
-    "lifecycle",
     "signals",
-    "typedb",
     "agents",
+    "skills",
+    "marketplace",
+    "mcp",
     "one"
   ]
 }
